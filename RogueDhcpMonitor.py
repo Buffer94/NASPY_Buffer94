@@ -25,8 +25,7 @@ class RogueDHCPMonitor():
     def sendDiscover(self):
         # 1 - Send a DHCP Discover Package
         DHCP_discover = Ether(src=self.localmac, dst=self.broadMAC) / IP(src=self.sourceIP, dst=self.destIP) / UDP(
-            dport=67, sport=68) / BOOTP(chaddr=self.localmac, xid=RandInt()) / DHCP(
-            options=[('message-type', 'discover'), 'end'])
+            dport=67, sport=68) / BOOTP() / DHCP(options=[('message-type', 'discover'), 'end'])
         sendp(DHCP_discover, iface=self.interface)
 
     def startSniffing(self):
