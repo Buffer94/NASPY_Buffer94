@@ -13,7 +13,7 @@ from scapy.all import *
 class RogueDHCPMonitor():
 
     def __init__(self):
-        self.interface = 'wlp3s0'
+        self.interface = 'ens3'
         self.myhostname = 'raspberrypi'
         self.localmac = get_if_hwaddr(self.interface)
         self.useless, self.localmacraw = get_if_raw_hwaddr(self.interface)
@@ -33,8 +33,10 @@ class RogueDHCPMonitor():
 
     def startSniffing(self):
         # 2 - Start sniffing package
-        capture = pyshark.LiveCapture(interface=self.interface, display_filter='bootp', only_summaries=True)
-        capture.sniff(timeout=50)
+        capture = pyshark.LiveCapture(interface=self.interface, display_filter='bootp')
+        capture.sniff(timeout=10)
+
+        print("CIAO")
 
         for packet in capture:
             if(packet.bootp.option_dhcp == '1'):
