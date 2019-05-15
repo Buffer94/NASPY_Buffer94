@@ -19,6 +19,7 @@ class RogueDHCPMonitor():
         self.broadMAC = 'ff:ff:ff:ff:ff:ff'
         self.sourceIP = '0.0.0.0'
         self.destIP = '255.255.255.255'
+        self.DHCPOffers = []
 
 
     def sendDiscover(self):
@@ -31,46 +32,20 @@ class RogueDHCPMonitor():
     def startSniffing(self):
         # 2 - Start sniffing package
         capture = pyshark.LiveCapture(interface=self.interface, display_filter='bootp', only_summaries=True)
-        capture.sniff(timeout=10)
+        capture.sniff(timeout=50)
 
         for packet in capture:
             if(packet.bootp.option_dhcp == '1'):
                 print("DHCP Discover")
             if (packet.bootp.option_dhcp == '2'):
-                print("DHCP Offer \n Server IP: %s\n Server MAC: "% (packet.eth.src))
+                self.DHCPOffers.append(packet)
+                # print("DHCP Offer \n Server IP: %s\n Server MAC: "% (packet.eth.src))
             if (packet.bootp.option_dhcp == '3'):
                 print("DHCP Request")
             if (packet.bootp.option_dhcp == '5'):
                 print("DHCP ACK")
 
-
-
-# conf.checkIPaddr=False
-#
-# # Setup
-# interface = 'wlp3s0'
-# myhostname='raspberrypi'
-# localmac = get_if_hwaddr(interface)
-# broadMAC = 'ff:ff:ff:ff:ff:ff'
-
-
-# 1 - Send a DHCP Discover Package
-# DHCP_discover = Ether(src=localmac, dst='ff:ff:ff:ff:ff:ff')/IP(src='0.0.0.0', dst='255.255.255.255')/UDP(dport=67, sport=68)/BOOTP(chaddr=localmac,xid=RandInt())/DHCP(options=[('message-type', 'discover'), 'end'])
-# sendp(DHCP_discover, iface=interface)
-
-# 2 - Start sniffing package
-
-# send discover, wait for reply
-# dhcp_offer = srp1(dhcp_discover,iface=interface)
-# print (dhcp_offer.display())
-
-# craft DHCP REQUEST from DHCP OFFER
-# myip=dhcp_offer[BOOTP].yiaddr
-# sip=dhcp_offer[BOOTP].siaddr
-# xid=dhcp_offer[BOOTP].xid
-# dhcp_request = Ether(src=localmac,dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67)/BOOTP(chaddr=localmacraw,xid=xid)/DHCP(options=[("message-type","request"),("server_id",sip),("requested_addr",myip),("hostname",myhostname),("param_req_list","pad"),"end"])
-# print (dhcp_request.display())
-#
-# # send request, wait for ack
-# dhcp_ack = srp1(dhcp_request,iface=localiface)
-# print (dhcp_ack.display())
+        if len(self.DHCPOffers) > 1:
+            print("I've found this DHCP Server:")
+            for DHCPOffer in self.DHCPOffers:
+                print("Server IP: %s\n Server MAC: %s"% (DHCPOffer.ip.addr, DHCPOffer.eth.src))
