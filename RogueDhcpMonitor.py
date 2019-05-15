@@ -37,7 +37,7 @@ class RogueDHCPMonitor():
             if(packet.bootp.option_dhcp == '1'):
                 print("DHCP Discover")
             if (packet.bootp.option_dhcp == '2'):
-                print("DHCP Offer")
+                print("DHCP Offer \n Server IP: %s\n Server MAC: "% (packet.eth.src))
             if (packet.bootp.option_dhcp == '3'):
                 print("DHCP Request")
             if (packet.bootp.option_dhcp == '5'):
