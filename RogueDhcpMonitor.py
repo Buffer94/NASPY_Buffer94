@@ -30,26 +30,27 @@ class RogueDHCPMonitor():
             options=[('message-type', 'discover'), 'end'])
         print(DHCP_discover.display())
         sendp(DHCP_discover, iface=self.interface)
-
-    def startSniffing(self):
+    #
+    # def startSniffing(self):
         # 2 - Start sniffing package
         capture = pyshark.LiveCapture(interface=self.interface, display_filter='bootp')
         capture.sniff(timeout=10)
 
         print("CIAO")
 
-        for packet in capture:
-            if(packet.bootp.option_dhcp == '1'):
-                print("DHCP Discover")
-            if (packet.bootp.option_dhcp == '2'):
-                self.DHCPOffers.append(packet)
-                # print("DHCP Offer \n Server IP: %s\n Server MAC: "% (packet.eth.src))
-            if (packet.bootp.option_dhcp == '3'):
-                print("DHCP Request")
-            if (packet.bootp.option_dhcp == '5'):
-                print("DHCP ACK")
+        if len(capture)>0:
+            for packet in capture:
+                if(packet.bootp.option_dhcp == '1'):
+                    print("DHCP Discover")
+                if (packet.bootp.option_dhcp == '2'):
+                    self.DHCPOffers.append(packet)
+                    # print("DHCP Offer \n Server IP: %s\n Server MAC: "% (packet.eth.src))
+                if (packet.bootp.option_dhcp == '3'):
+                    print("DHCP Request")
+                if (packet.bootp.option_dhcp == '5'):
+                    print("DHCP ACK")
 
-        print("CIAO")
+        print("CIAO_After_For")
 
         if len(self.DHCPOffers) > 1:
             print("I've found this DHCP Server:")
