@@ -49,6 +49,8 @@ class RogueDHCPMonitor():
             if (packet.bootp.option_dhcp == '5'):
                 print("DHCP ACK")
 
+        print("CIAO")
+
         if len(self.DHCPOffers) > 1:
             print("I've found this DHCP Server:")
             for DHCPOffer in self.DHCPOffers:
