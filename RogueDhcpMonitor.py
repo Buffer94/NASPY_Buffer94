@@ -16,6 +16,7 @@ class RogueDHCPMonitor():
         self.interface = 'wlp3s0'
         self.myhostname = 'raspberrypi'
         self.localmac = get_if_hwaddr(self.interface)
+        self.useless, self.localmacraw = get_if_raw_hwaddr(self.interface)
         self.broadMAC = 'ff:ff:ff:ff:ff:ff'
         self.sourceIP = '0.0.0.0'
         self.destIP = '255.255.255.255'
@@ -25,7 +26,9 @@ class RogueDHCPMonitor():
     def sendDiscover(self):
         # 1 - Send a DHCP Discover Package
         DHCP_discover = Ether(src=self.localmac, dst=self.broadMAC) / IP(src=self.sourceIP, dst=self.destIP) / UDP(
-            dport=67, sport=68) / BOOTP() / DHCP(options=[('message-type', 'discover'), 'end'])
+            dport=67, sport=68) / BOOTP(chaddr=self.localmacraw, xid=RandInt()) / DHCP(
+            options=[('message-type', 'discover'), 'end'])
+        print(DHCP_discover.display())
         sendp(DHCP_discover, iface=self.interface)
 
     def startSniffing(self):
