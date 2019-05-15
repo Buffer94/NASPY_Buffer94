@@ -53,3 +53,6 @@ class RogueDHCPMonitor():
             print("I've found this DHCP Server:")
             for DHCPOffer in self.DHCPOffers:
                 print("Server IP: %s\n Server MAC: %s"% (DHCPOffer.ip.addr, DHCPOffer.eth.src))
+        else:
+            for packet in capture:
+                print(packet)
