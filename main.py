@@ -1,7 +1,7 @@
 from RogueDhcpMonitor import *
 
-sender = RogueDHCPMonitor()
+# sender = RogueDHCPMonitor()
 sniffer = Sniffer()
 
 sniffer.start()
-sender.sendDiscover()
+# sender.sendDiscover()
