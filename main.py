@@ -5,7 +5,7 @@ import sys
 usage = "Usage: -i [interface], -m [mode]"
 
 print ("Welcome to SanPy (O NasPy)")
-print (usage)
+# print (usage)
 
 if len(sys.argv) < 5:
     print("Error, you must enter an Interface name and a modality")

@@ -29,4 +29,4 @@ class Sniffer(Thread):
                 monitor.monitor_DHCP(packet)
 
             if self.mode == 'arp':
-                monitor.find_duplicate(packet)
+                monitor.update_arp_table(packet)
