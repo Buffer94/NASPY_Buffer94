@@ -1,6 +1,7 @@
 from threading import Thread
 from RogueDhcpMonitor import *
 from ArpMonitor import *
+from VlanMonitor import *
 import pyshark
 
 
@@ -19,6 +20,9 @@ class Sniffer(Thread):
         if self.mode == 'dhcp':
             self.filter = 'bootp'
             monitor = RogueDHCPMonitor(self.interface)
+        if self.mode == 'vlan':
+            self.filter = 'vlan'
+            monitor = VlanMonitor()
 
         capture = pyshark.LiveCapture(interface=self.interface, display_filter=self.filter)
 
@@ -30,3 +34,6 @@ class Sniffer(Thread):
 
             if self.mode == 'arp':
                 monitor.update_arp_table(packet)
+
+            if self.mode == 'vlan':
+                monitor.update_vlan_table(packet)
