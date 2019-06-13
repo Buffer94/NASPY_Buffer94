@@ -1,5 +1,3 @@
-import pyshark
-
 
 class VlanMonitor:
 

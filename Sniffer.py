@@ -1,7 +1,6 @@
-from threading import Thread
-from RogueDhcpMonitor import *
-from ArpMonitor import *
-from VlanMonitor import *
+from Monitors.RogueDhcpMonitor import *
+from Monitors.ArpMonitor import *
+from Monitors.VlanMonitor import *
 import pyshark
 
 
