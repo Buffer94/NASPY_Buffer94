@@ -5,7 +5,7 @@ class STPMonitor:
         self.switches_table = list()
 
     def update_switches_table(self):
-
+        print('MIAO')
     #     sender_mac = packet.eth.src
     #     bridge_id = packet.stp.bridge_hw
     #     bridge_port = packet.stp.port
