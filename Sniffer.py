@@ -1,6 +1,7 @@
 from Monitors.RogueDhcpMonitor import *
 from Monitors.ArpMonitor import *
 from Monitors.VlanMonitor import *
+from Monitors.STPMonitor import *
 import pyshark
 
 
@@ -22,6 +23,9 @@ class Sniffer(Thread):
         if self.mode == 'vlan':
             self.filter = 'vlan'
             monitor = VlanMonitor()
+        if self.mode == 'stp':
+            self.filter = 'stp'
+            monitor = STPMonitor()
 
         capture = pyshark.LiveCapture(interface=self.interface, display_filter=self.filter)
 
@@ -36,3 +40,6 @@ class Sniffer(Thread):
 
             if self.mode == 'vlan':
                 monitor.update_vlan_table(packet)
+
+            if self.mode == 'stp':
+                monitor.update_switches_table(packet)

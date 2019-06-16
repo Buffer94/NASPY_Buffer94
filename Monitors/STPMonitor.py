@@ -25,31 +25,3 @@ class STPMonitor:
     #         for port in self.switches_table[bridge_id]:
     #             print("port_mac: %s" % port)
 
-
-class Switch:
-
-    def __init__(self):
-        self.bridge_id
-        self.bridge_priority
-        self.is_root_bridge
-        self.ports = list()
-
-    def add_ports(self, port_address):
-        for curr_port in self.ports:
-            if not port_address == curr_port[0]:
-                self.ports.append((port_address, "Blocked"))
-
-    def set_designated_port(self, port_address):
-        for port in self.ports:
-            if port[0] == port_address:
-                port[1] = "Designated"
-
-    def set_root_port(self, port_address):
-        for port in self.ports:
-            if port[0] == port_address:
-                port[1] = "Root"
-
-    def print_port_status(self):
-        for port in self.ports:
-            print("Port: %s, Status: %s" % (port[0], port[1]))
-

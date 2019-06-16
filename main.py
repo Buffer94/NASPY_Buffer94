@@ -25,6 +25,9 @@ else:
             type = 'dhcp'
         if sys.argv[4] == 'vlan':
             type = 'vlan'
+        if sys.argv[4] == 'stp':
+            type = 'vlan'
+
     else:
         sys.exit(0)
 
