@@ -2,6 +2,8 @@ from Monitors.RogueDhcpMonitor import *
 from Monitors.ArpMonitor import *
 from Monitors.VlanMonitor import *
 from Monitors.STPMonitor import *
+from SSH_Connettors.CiscoModule import *
+import getpass
 import pyshark
 
 
@@ -25,7 +27,33 @@ class Sniffer(Thread):
             monitor = VlanMonitor()
         if self.mode == 'stp':
             self.filter = 'stp'
+
+            print("Enabling STP Monitoring...")
+
             monitor = STPMonitor()
+
+            print("Wait for CDP Packet ... ")
+            cdp_sniff = pyshark.LiveCapture(interface=self.interface, display_filter="cdp")
+            cdp_sniff.sniff(packet_count = 1)
+            pkt = cdp_sniff[0]
+
+            if pkt.cdp.number_of_addresses == '1':
+                switch_ip = pkt.cdp.nrgyz_ip_address
+            else:
+                switch_ip = input('switch_ip: ')
+
+            #CALL CISCOMODULE SSH BEFORE OF MONITORING.
+            switch_interface = pkt.cdp.portid
+            switch_name = input('switch username: ')
+            switch_pwd = getpass.getpass('password: ')
+            switch_en_pwd = getpass.getpass('enable password: ')
+            timeout = 60
+
+            print("Connecting to SSH")
+            print(switch_interface)
+            ssh = CiscoModule(switch_ip, switch_name, switch_pwd, switch_en_pwd, 'Gi 3/3', timeout)
+            monitor.add_switch(ssh.take_interfaces())
+            ssh.enable_monitor_mode()
 
         capture = pyshark.LiveCapture(interface=self.interface, display_filter=self.filter)
 

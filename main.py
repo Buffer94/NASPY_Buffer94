@@ -26,7 +26,7 @@ else:
         if sys.argv[4] == 'vlan':
             type = 'vlan'
         if sys.argv[4] == 'stp':
-            type = 'vlan'
+            type = 'stp'
 
     else:
         sys.exit(0)

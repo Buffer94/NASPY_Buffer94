@@ -1,4 +1,6 @@
 import pexpect
+import re
+from Switch import *
 
 
 class CiscoModule:
@@ -29,9 +31,26 @@ class CiscoModule:
     def take_interfaces(self):
         self.child.sendline('show interfaces | i (.* line protocol is )|(.* address is)')
         self.child.expect('%s#' % self.switch_name)
-        raw_port = self.child.before
+        output = str(self.child.before)
+        raw_port_name = re.findall('([^\\n]\w*[^0-9]\d\/\d\.*\d*)', output)
+        raw_port_mac = re.findall('([a-fA-F0-9]{4}[.][a-fA-F0-9]{4}[.][a-fA-F0-9]{4})[^\)]', output)
+        switch = Switch(self.switch_name)
 
-        # Take Output from child.before or child.after
+        if len(raw_port_mac) == len(raw_port_name):
+            dim = len(raw_port_name)
+        else:
+            if len(raw_port_mac) < len(raw_port_name):
+                dim = len(raw_port_mac)
+            else:
+                dim = len(raw_port_name)
+
+        for i in range(dim):
+            mac_parts = raw_port_mac[i].split('.')
+            mac = mac_parts[0][:2] + ':' + mac_parts[0][2:4] + ':' + mac_parts[1][:2] + ':' + mac_parts[1][2:4] + ':' + \
+                  mac_parts[2][:2] + ':' + mac_parts[2][2:4]
+            switch.add_ports(Port(raw_port_name[i], mac))
+
+        return switch
 
     def put_callback(self):
         # Event that will trigger after 300 sec that will close the monitor session
@@ -53,16 +72,22 @@ class CiscoModule:
         self.child.expect('%s#' % self.switch_name)
 
     def enable_monitor_mode(self):
-        self.child.sendline('configure terminal')
-        self.child.expect('\(config\)#')
-        self.child.sendline('monitor session 1 source interface Gi0/0 - 3')
-        self.child.expect('\(config\)#')
-        self.child.sendline('monitor session 1 source interface Gi1/0 - 3')
-        self.child.expect('\(config\)#')
-        self.child.sendline('monitor session 1 source interface Gi2/0 - 3')
-        self.child.expect('\(config\)#')
-        self.child.sendline('monitor session 1 source interface Gi3/0 - 2')
-        self.child.expect('\(config\)#')
-        self.child.sendline(
-            'monitor session 1 destination interface %s encapsulation replicate' % self.connected_interface)
-        self.child.close()
+        try:
+            self.put_callback()
+            self.child.sendline('configure terminal')
+            self.child.expect('\(config\)#')
+            self.child.sendline('monitor session 1 source interface Gi 0/0 - 3')
+            self.child.expect('\(config\)#')
+            self.child.sendline('monitor session 1 source interface Gi 1/0 - 3')
+            self.child.expect('\(config\)#')
+            self.child.sendline('monitor session 1 source interface Gi 2/0 - 3')
+            self.child.expect('\(config\)#')
+            self.child.sendline('monitor session 1 source interface Gi 3/0 - 2')
+            self.child.expect('\(config\)#')
+            self.child.sendline(
+                'monitor session 1 destination interface %s encapsulation replicate' % self.connected_interface)
+            self.child.expect('\(config\)#')
+            self.child.close()
+        except (pexpect.EOF, pexpect.TIMEOUT) as e:
+            print("Connection Closed!")
+
