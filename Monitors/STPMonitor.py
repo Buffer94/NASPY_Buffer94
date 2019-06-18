@@ -5,11 +5,9 @@ class STPMonitor:
         self.switches_table = list()
 
     def update_switches_table(self, packet):
-        print("Updating Switches Table!")
-        print("Packet Address: %s " % packet.eth.src)
+        print("Updating Switches Table..")
         sender_mac = packet.eth.src
         for switch in self.switches_table:
-            print("bridge_id : %s , pkt_bridge_id: %s" % (switch.bridge_id, packet.stp.bridge_hw))
             if switch.bridge_id == packet.stp.bridge_hw:
                 sender_mac = packet.eth.src
                 switch.set_designated_port(sender_mac)

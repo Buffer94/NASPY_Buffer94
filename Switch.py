@@ -17,7 +17,6 @@ class Switch:
             self.ports.append(port)
 
     def set_designated_port(self, port_address):
-        print("port address: %s" % port_address)
         for port in self.ports:
             if port.MAC == port_address:
                 port.set_port_as_designated()

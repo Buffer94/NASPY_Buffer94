@@ -49,9 +49,8 @@ class Sniffer(Thread):
             switch_en_pwd = getpass.getpass('enable password: ')
             timeout = 60
 
-            print("Connecting to SSH")
-            print(switch_interface)
-            ssh = CiscoModule(switch_ip, switch_name, switch_pwd, switch_en_pwd, 'Gi 3/3', timeout)
+            print("Connecting to SSH...")
+            ssh = CiscoModule(switch_ip, switch_name, switch_pwd, switch_en_pwd, switch_interface, timeout)
             monitor.add_switch(ssh.take_interfaces())
             ssh.enable_monitor_mode()
 

@@ -12,6 +12,7 @@ class CiscoModule:
         self.switch_en_pwd = s_en_pwd
         self.connected_interface = c_interface
         self.monitor_timeout = m_timeout
+        self.switch_interfaces = list()
         try:
             self.child = pexpect.spawn("ssh %s@%s" % (self.switch_name, self.switch_ip))
             self.child.timeout = 20
@@ -45,11 +46,17 @@ class CiscoModule:
                 dim = len(raw_port_name)
 
         for i in range(dim):
+            name = raw_port_name[i].lstrip('\\n')
             mac_parts = raw_port_mac[i].split('.')
             mac = mac_parts[0][:2] + ':' + mac_parts[0][2:4] + ':' + mac_parts[1][:2] + ':' + mac_parts[1][2:4] + ':' + \
                   mac_parts[2][:2] + ':' + mac_parts[2][2:4]
-            switch.add_ports(Port(raw_port_name[i], mac))
+            switch.add_ports(Port(name, mac))
 
+            if name == self.connected_interface:
+                switch.set_designated_port(mac)
+
+            if name not in self.switch_interfaces:
+                self.switch_interfaces.append(name)
         return switch
 
     def put_callback(self):
@@ -76,14 +83,12 @@ class CiscoModule:
             self.put_callback()
             self.child.sendline('configure terminal')
             self.child.expect('\(config\)#')
-            self.child.sendline('monitor session 1 source interface Gi 0/0 - 3')
-            self.child.expect('\(config\)#')
-            self.child.sendline('monitor session 1 source interface Gi 1/0 - 3')
-            self.child.expect('\(config\)#')
-            self.child.sendline('monitor session 1 source interface Gi 2/0 - 3')
-            self.child.expect('\(config\)#')
-            self.child.sendline('monitor session 1 source interface Gi 3/0 - 2')
-            self.child.expect('\(config\)#')
+
+            for interface in self.switch_interfaces:
+                if interface != self.connected_interface:
+                    self.child.sendline('monitor session 1 source interface %s' % interface)
+                    self.child.expect('\(config\)#')
+
             self.child.sendline(
                 'monitor session 1 destination interface %s encapsulation replicate' % self.connected_interface)
             self.child.expect('\(config\)#')
