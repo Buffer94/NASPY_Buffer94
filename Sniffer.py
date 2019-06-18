@@ -42,7 +42,6 @@ class Sniffer(Thread):
             else:
                 switch_ip = input('switch_ip: ')
 
-            #CALL CISCOMODULE SSH BEFORE OF MONITORING.
             switch_interface = pkt.cdp.portid
             switch_name = input('switch username: ')
             switch_pwd = getpass.getpass('password: ')

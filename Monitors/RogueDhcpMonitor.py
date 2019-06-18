@@ -15,7 +15,7 @@ class RogueDHCPMonitor:
         self.interface = interface
         self.myhostname = 'raspberrypi'
         self.localmac = get_if_hwaddr(self.interface)
-        self.useless, self.localmacraw = get_if_raw_hwaddr(self.interface)
+        self.localmacraw = get_if_raw_hwaddr(self.interface)
         self.broadMAC = 'ff:ff:ff:ff:ff:ff'
         self.sourceIP = '0.0.0.0'
         self.destIP = '255.255.255.255'
