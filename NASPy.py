@@ -1,5 +1,6 @@
 from Sniffer import *
 from NetInterface import *
+from Monitors import *
 import sys
 
 usage = "Usage: -i [interface], [-m [mode]], [-h [help]]"
@@ -47,12 +48,61 @@ if mode == 'no':
     print('%s \n %s' % (usage, full_usage))
     sys.exit(0)
 
-netinterface = NetInterface(interface)
+net_interface = NetInterface(interface)
 
+net_interface.wait_cdp_packet()
+net_interface.ssh_connection()
 
+if mode == 'dhcp' or mode == 'all':
+    net_interface.send_dhcp_discover()
 
+if mode == 'dns' or mode == 'all':
+    net_interface.send_dns_request()
 
-#
-# sniffer = Sniffer(interface, type)
-#
-# sniffer.start()
+if mode == 'stp':
+    net_interface.take_interfaces()
+
+net_interface.enable_monitor_mode()
+
+net_interface.sniff()
+
+# TODO ANALISI
+
+vlan_monitor = VlanMonitor()
+stp_monitor = STPMonitor()
+arp_monitor = ArpMonitor()
+dhcp_monitor = RogueDHCPMonitor()
+
+for pkt in net_interface.capture:
+    if mode == 'all':
+        if pkt.highest_layer.upper() == 'STP':
+            stp_monitor.update_switches_table(pkt)
+        if pkt.highest_layer.upper() == 'ARP':
+            arp_monitor.update_arp_table(pkt)
+        # TODO potrei prendere tutti i pacchetti, non solo gli STP.
+        if pkt.highest_layer.upper() == 'STP':
+            vlan_monitor.update_vlan_table(pkt)
+        if pkt.highest_layer.upper() == 'BOOTP':
+            dhcp_monitor.update_dhcp_servers(pkt)
+        print('all')
+
+    if mode == 'dns':
+        # TODO
+        print('dns')
+
+    if mode == 'dhcp' and pkt.highest_layer.upper() == 'BOOTP':
+        dhcp_monitor.update_dhcp_servers(pkt)
+        print('dhcp')
+
+    if mode == 'arp' and pkt.highest_layer.upper() == 'ARP':
+        arp_monitor.update_arp_table(pkt)
+        print('arp')
+
+    if mode == 'vlan' and pkt.highest_layer.upper() == 'STP':
+        # TODO potrei prendere tutti i pacchetti, non solo gli STP.
+        vlan_monitor.update_vlan_table(pkt)
+        print('vlan')
+
+    if mode == 'stp' and pkt.highest_layer.upper() == 'STP':
+        stp_monitor.update_switches_table(pkt)
+        print('stp')

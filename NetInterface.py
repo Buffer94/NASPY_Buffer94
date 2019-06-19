@@ -13,6 +13,7 @@ class NetInterface:
         self.switch_interface = ''
         self.switch_MAC = ''
         self.capture = ''
+        self.ssh = 'null'
 
     def wait_cdp_packet(self):
         print("Wait for CDP Packet ... ")
@@ -33,9 +34,16 @@ class NetInterface:
 
         print("Connecting to SSH...")
         #TODO SWITCH FOR VENDOR ADDRESS
-        ssh = CiscoSSH(switch_ip, switch_name, switch_pwd, switch_en_pwd, self.switch_interface, self.timeout)
-        ssh.enable_monitor_mode()
+        self.ssh = CiscoSSH(switch_ip, switch_name, switch_pwd, switch_en_pwd, self.switch_interface, self.timeout)
         # monitor.add_switch(ssh.take_interfaces())
+
+    def enable_monitor_mode(self):
+        if self.ssh != 'null':
+            self.ssh.enable_monitor_mode()
+
+    def take_interfaces(self):
+        if self.ssh != 'null':
+            self.ssh.take_interfaces()
 
     def send_dhcp_discover(self):
         print('sending dhcp discover...')

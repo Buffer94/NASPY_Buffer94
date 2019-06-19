@@ -9,6 +9,6 @@ print ("Welcome to NasPy --Buffer94_Module-- ####STP_DEBUG####")
 interface = 'enp0s3'
 type = 'stp'
 
-sniffer = Sniffer(interface, type)
-
-sniffer.start()
+# sniffer = Sniffer(interface, type)
+#
+# sniffer.start()
