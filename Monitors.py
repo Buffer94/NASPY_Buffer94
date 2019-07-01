@@ -138,6 +138,10 @@ class STPMonitor:
         if switch not in self.switches_table:
             self.switches_table.append(switch)
 
+    def print_switches_status(self):
+        for switch in self.switches_table:
+            switch.print_port_status()
+
     def discover_topology_change(self):
         print('')
         # TODO

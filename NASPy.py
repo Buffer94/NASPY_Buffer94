@@ -1,4 +1,3 @@
-from Sniffer import *
 from NetInterface import *
 from Monitors import *
 import sys
@@ -59,13 +58,6 @@ if mode == 'dhcp' or mode == 'all':
 if mode == 'dns' or mode == 'all':
     net_interface.send_dns_request()
 
-if mode == 'stp':
-    net_interface.take_interfaces()
-
-net_interface.enable_monitor_mode()
-
-net_interface.sniff()
-
 # TODO ANALISI
 
 vlan_monitor = VlanMonitor()
@@ -73,7 +65,14 @@ stp_monitor = STPMonitor()
 arp_monitor = ArpMonitor()
 dhcp_monitor = RogueDHCPMonitor()
 
-for pkt in net_interface.capture:
+if mode == 'stp':
+    net_interface.take_interfaces(stp_monitor)
+
+net_interface.enable_monitor_mode()
+
+# net_interface.sniff()
+
+def update_callback(pkt):
     if mode == 'all':
         if pkt.highest_layer.upper() == 'STP':
             stp_monitor.update_switches_table(pkt)
@@ -106,3 +105,7 @@ for pkt in net_interface.capture:
     if mode == 'stp' and pkt.highest_layer.upper() == 'STP':
         stp_monitor.update_switches_table(pkt)
         print('stp')
+
+print('start sniffing...')
+net_interface.capture = pyshark.LiveCapture(interface=net_interface.interface)
+net_interface.capture.apply_on_packets(update_callback, timeout=net_interface.timeout)

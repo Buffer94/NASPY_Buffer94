@@ -9,7 +9,7 @@ class NetInterface:
         self.interface = interface
         self.filter = "arp"
         self.timeout = 60
-        self.switch_ip = ''
+        self.switch_ip = 'null'
         self.switch_interface = ''
         self.switch_MAC = ''
         self.capture = ''
@@ -27,23 +27,25 @@ class NetInterface:
         self.switch_interface = pkt.cdp.portid
 
     def ssh_connection(self):
-        switch_ip = input('switch_ip: ')
+        if self.switch_ip == 'null':
+            self.switch_ip = input('switch_ip: ')
         switch_name = input('switch username: ')
         switch_pwd = getpass.getpass('password: ')
         switch_en_pwd = getpass.getpass('enable password: ')
 
         print("Connecting to SSH...")
         #TODO SWITCH FOR VENDOR ADDRESS
-        self.ssh = CiscoSSH(switch_ip, switch_name, switch_pwd, switch_en_pwd, self.switch_interface, self.timeout)
+        self.ssh = CiscoSSH(self.switch_ip, switch_name, switch_pwd, switch_en_pwd, self.switch_interface, self.timeout)
         # monitor.add_switch(ssh.take_interfaces())
 
     def enable_monitor_mode(self):
         if self.ssh != 'null':
             self.ssh.enable_monitor_mode()
 
-    def take_interfaces(self):
+    def take_interfaces(self, monitor):
         if self.ssh != 'null':
-            self.ssh.take_interfaces()
+            monitor.add_switch(self.ssh.take_interfaces())
+            # self.ssh.take_interfaces()
 
     def send_dhcp_discover(self):
         print('sending dhcp discover...')
@@ -64,5 +66,6 @@ class NetInterface:
 
     def sniff(self):
         print('start sniffing...')
-        self.capture = pyshark.LiveCapture(interface=self.interface)
-        self.capture.sniff(timeout=self.timeout)
+        # self.capture = pyshark.LiveCapture(interface=self.interface)
+        # self.capture.apply_on_packets()
+        # self.capture.sniff(timeout=self.timeout)
