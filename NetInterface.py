@@ -45,7 +45,6 @@ class NetInterface:
     def take_interfaces(self, monitor):
         if self.ssh != 'null':
             monitor.add_switch(self.ssh.take_interfaces())
-            # self.ssh.take_interfaces()
 
     def send_dhcp_discover(self):
         print('sending dhcp discover...')

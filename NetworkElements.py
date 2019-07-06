@@ -18,12 +18,16 @@ class DHCPServer:
 
 class Switch:
 
-    def __init__(self, n):
+    def __init__(self, n, ip, pwd, en_pwd, conn_interface):
         self.name = n
         self.bridge_id = ''
         self.bridge_priority = 0
         self.is_root_bridge = True
         self.ports = list()
+        self.ip = ip
+        self.password = pwd
+        self.en_password = en_pwd
+        self.connected_interface = conn_interface
 
     def set_bridge_info(self, b_id, b_p, rb):
         self.bridge_id = b_id
@@ -54,6 +58,19 @@ class Switch:
                 return True
         return False
 
+    def get_blocked_port(self):
+        out = list()
+        there_is_root = False
+        for port in self.ports:
+            if not there_is_root:
+                if port.status == 'Root':
+                    there_is_root = True
+                if port.status == 'Blocked':
+                    out.append(port)
+        if there_is_root:
+            out = list()
+        return out
+
 
 class Port:
 
@@ -61,9 +78,15 @@ class Port:
         self.name = n
         self.MAC = m
         self.status = "Blocked"
+        self.pkg_counter = 0
+
+    def increase_pkg_counter(self):
+        if self.status == "Blocked":
+            self.pkg_counter += 1
 
     def set_port_as_designated(self):
         self.status = "Designated"
+        self.pkg_counter = 0
 
     def set_port_as_root(self):
         self.status = "Root"

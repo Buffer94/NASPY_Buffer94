@@ -70,12 +70,12 @@ if mode == 'stp':
 
 net_interface.enable_monitor_mode()
 
-# net_interface.sniff()
 
 def update_callback(pkt):
     if mode == 'all':
-        if pkt.highest_layer.upper() == 'STP':
-            stp_monitor.update_switches_table(pkt)
+        if pkt.highest_layer.upper() == 'STP' and (pkt.stp.type == '0x80' or pkt.stp.type == '0x80000000'):
+            stp_monitor.set_root_port(packet.stp.bridge_hw, packet.eth.src)
+        stp_monitor.update_switches_table(pkt)
         if pkt.highest_layer.upper() == 'ARP':
             arp_monitor.update_arp_table(pkt)
         # TODO potrei prendere tutti i pacchetti, non solo gli STP.
@@ -103,9 +103,15 @@ def update_callback(pkt):
         print('vlan')
 
     if mode == 'stp' and pkt.highest_layer.upper() == 'STP':
+        if pkt.stp.type == '0x80' or pkt.stp.type == '0x80000000':
+            stp_monitor.set_root_port(packet.stp.bridge_hw, packet.eth.src)
         stp_monitor.update_switches_table(pkt)
         print('stp')
 
+
 print('start sniffing...')
 net_interface.capture = pyshark.LiveCapture(interface=net_interface.interface)
-net_interface.capture.apply_on_packets(update_callback, timeout=net_interface.timeout)
+try:
+    net_interface.capture.apply_on_packets(update_callback, timeout=net_interface.timeout)
+except Exception:
+    print('Capture finished!')

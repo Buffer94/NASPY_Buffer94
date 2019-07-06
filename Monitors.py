@@ -117,22 +117,51 @@ class STPMonitor:
         self.switches_table = list()
 
     def update_switches_table(self, packet):
-        print("Updating Switches Table..")
         sender_mac = packet.eth.src
         for switch in self.switches_table:
-            if switch.bridge_id == packet.stp.bridge_hw:
-                sender_mac = packet.eth.src
-                switch.set_designated_port(sender_mac)
-            else:
-                if switch.bridge_id == '' and switch.contains(sender_mac):
-                    switch.bridge_id = packet.stp.bridge_hw
-                    switch.bridge_priority = packet.stp.bridge_prio
-                    if packet.stp.root_hw == packet.stp.bridge_hw:
-                        switch.is_root_bridge = True
-                    else:
-                        switch.is_root_bridge = False
+            if packet.highest_layer.upper() == 'STP':
+                if switch.bridge_id == packet.stp.bridge_hw:
+                    sender_mac = packet.eth.src
                     switch.set_designated_port(sender_mac)
-            switch.print_port_status()
+                else:
+                    if switch.bridge_id == '' and switch.contains(sender_mac):
+                        switch.bridge_id = packet.stp.bridge_hw
+                        switch.bridge_priority = packet.stp.bridge_prio
+                        if packet.stp.root_hw == packet.stp.bridge_hw:
+                            switch.is_root_bridge = True
+                        else:
+                            switch.is_root_bridge = False
+                        switch.set_designated_port(sender_mac)
+            else:
+                for port in switch.ports:
+                    if port.MAC == sender_mac:
+                        port.increase_pkg_counter()
+
+    def check_root_port(self):
+        for switch in self.switches_table:
+            blocked_port = list()
+            for port in switch.ports:
+                if port.status == "Blocked":
+                    blocked_port.append(port)
+            if len(blocked_port) > 1:
+                max = 0
+                root = 'null'
+                for port in blocked_port:
+                    if port.pkg_counter > max:
+                        max = port.pkg_counter
+                        root = port.MAC
+                    print(">>>>>DEBUG<<<<< max: %s  -  current %s" % (max, port.pkg_counter))
+                if root != 'null':
+                    switch.set_root_port(root)
+            else:
+                if len(blocked_port) == 1:
+                    switch.set_root_port(blocked_port[0].MAC)
+
+    def set_root_port(self, bridge_hw, port_mac):
+        print(">>>>>DEBUG<<<<<I want to set %s as root port of %s" %(bridge_hw, port_mac))
+        for switch in self.switches_table:
+            if switch.bridge_id == bridge_hw:
+                switch.set_root_port(port_mac)
 
     def add_switch(self, switch):
         if switch not in self.switches_table:

@@ -16,7 +16,7 @@ class CiscoSSH:
         self.switch_interfaces = list()
         try:
             self.child = pexpect.spawn("ssh %s@%s" % (self.switch_name, self.switch_ip))
-            self.child.timeout = 20
+            self.child.timeout = 15
             self.child.expect('Password:')
             self.child.sendline(self.switch_pwd)
             self.child.expect('>')
@@ -29,6 +29,38 @@ class CiscoSSH:
         except (pexpect.EOF, pexpect.TIMEOUT) as e:
             print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n" % e)
             self.child.close()
+            #TODO Handling fingerprint already present and new fingerprint
+
+    def reconnect(self, s_ip, s_name, s_pwd, s_en_pwd, c_interface, m_timeout):
+        self.switch_ip = s_ip
+        self.switch_name = s_name
+        self.switch_pwd = s_pwd
+        self.switch_en_pwd = s_en_pwd
+        self.connected_interface = c_interface
+        self.monitor_timeout = m_timeout
+        attempts = 0
+        connected = False
+        while attempts < 10 and not connected:
+            try:
+                self.child = pexpect.spawn("ssh %s@%s" % (self.switch_name, self.switch_ip))
+                self.child.timeout = 15
+                self.child.expect('Password:')
+                self.child.sendline(self.switch_pwd)
+                self.child.expect('>')
+                self.child.sendline('terminal length 0')
+                self.child.expect('>')
+                self.child.sendline('enable')
+                self.child.expect('Password:')
+                self.child.sendline(self.switch_en_pwd)
+                self.child.expect('%s#' % self.switch_name)
+                connected = True
+            except (pexpect.EOF, pexpect.TIMEOUT) as e:
+                if attempts < 9:
+                    print("Attempt #%s failed! i'm triyng again!" % attempts)
+                else:
+                    print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n" % e)
+                self.child.close()
+                attempts += 1
 
     def take_interfaces(self):
         self.child.sendline('show interfaces | i (.* line protocol is )|(.* address is)')
@@ -36,7 +68,7 @@ class CiscoSSH:
         output = str(self.child.before)
         raw_port_name = re.findall('([^\\n]\w*[^0-9]\d\/\d\.*\d*)', output)
         raw_port_mac = re.findall('([a-fA-F0-9]{4}[.][a-fA-F0-9]{4}[.][a-fA-F0-9]{4})[^\)]', output)
-        switch = Switch(self.switch_name)
+        switch = Switch(self.switch_name, self.switch_ip, self.switch_pwd, self.switch_en_pwd, self.connected_interface)
 
         if len(raw_port_mac) == len(raw_port_name):
             dim = len(raw_port_name)
@@ -61,7 +93,6 @@ class CiscoSSH:
         return switch
 
     def put_callback(self):
-        # Event that will trigger after 300 sec that will close the monitor session
         self.child.sendline('configure terminal')
         self.child.expect('\(config\)#')
         self.child.sendline('event manager applet no-monitor-session')
@@ -97,3 +128,17 @@ class CiscoSSH:
         except (pexpect.EOF, pexpect.TIMEOUT) as e:
             print("Connection Closed!")
 
+    def enable_monitor_mode_on_specific_port(self, port_name):
+        try:
+            self.put_callback()
+            self.child.timeout = 5
+            self.child.sendline('configure terminal')
+            self.child.expect('\(config\)#')
+            self.child.sendline('monitor session 1 source interface %s' % port_name)
+            self.child.expect('\(config\)#')
+            self.child.sendline(
+                'monitor session 1 destination interface %s encapsulation replicate' % self.connected_interface)
+            self.child.expect('\(config\)#')
+            self.child.close()
+        except (pexpect.EOF, pexpect.TIMEOUT) as e:
+            print("Connection Closed!")
