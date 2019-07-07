@@ -2,6 +2,7 @@ import pexpect
 import re
 from NetworkElements import Switch
 from NetworkElements import Port
+import os
 
 
 class CiscoSSH:
@@ -26,10 +27,40 @@ class CiscoSSH:
             self.child.expect('Password:')
             self.child.sendline(self.switch_en_pwd)
             self.child.expect('%s#' % self.switch_name)
+            print("Connected!")
+        except pexpect.EOF as e:
+            if "Host key verification failed." in str(self.child.before):
+                print("Host key verification failed. Retring!")
+                os.system('ssh-keygen -f "/root/.ssh/known_hosts" -R %s' % self.switch_ip)
+                self.connect_with_no_host_auth()
+            else:
+                print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n" % e)
+        except pexpect.TIMEOUT as e:
+            if "The authenticity of host" in str(self.child.before):
+                self.connect_with_no_host_auth()
+            else:
+                print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n" % e)
+                self.child.close()
+
+    def connect_with_no_host_auth(self):
+        print("I'm trying to acknlowledge the authenticity of the new host")
+        try:
+            self.child = pexpect.spawn("ssh %s@%s" % (self.switch_name, self.switch_ip))
+            self.child.expect('The authenticity of host')
+            self.child.sendline('yes')
+            self.child.expect('Password:')
+            self.child.sendline(self.switch_pwd)
+            self.child.expect('>')
+            self.child.sendline('terminal length 0')
+            self.child.expect('>')
+            self.child.sendline('enable')
+            self.child.expect('Password:')
+            self.child.sendline(self.switch_en_pwd)
+            self.child.expect('%s#' % self.switch_name)
+            print("Connected!")
         except (pexpect.EOF, pexpect.TIMEOUT) as e:
             print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n" % e)
             self.child.close()
-            #TODO Handling fingerprint already present and new fingerprint
 
     def reconnect(self, s_ip, s_name, s_pwd, s_en_pwd, c_interface, m_timeout):
         self.switch_ip = s_ip
@@ -54,6 +85,7 @@ class CiscoSSH:
                 self.child.sendline(self.switch_en_pwd)
                 self.child.expect('%s#' % self.switch_name)
                 connected = True
+                print("Connected!")
             except (pexpect.EOF, pexpect.TIMEOUT) as e:
                 if attempts < 9:
                     print("Attempt #%s failed! i'm triyng again!" % attempts)
