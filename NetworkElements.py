@@ -52,6 +52,12 @@ class Switch:
         for port in self.ports:
             print("Port: %s - Address: %s, Status: %s" % (port.name, port.MAC, port.status))
 
+    def contain_root_port(self):
+        for port in self.ports:
+            if port.status == "Root":
+                return True
+        return False
+
     def contains(self, port_address):
         for port in self.ports:
             if port.MAC == port_address:

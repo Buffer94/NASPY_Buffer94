@@ -15,6 +15,9 @@ class CiscoSSH:
         self.connected_interface = c_interface
         self.monitor_timeout = m_timeout
         self.switch_interfaces = list()
+        self.child = None
+
+    def connect(self):
         try:
             self.child = pexpect.spawn("ssh %s@%s" % (self.switch_name, self.switch_ip))
             self.child.timeout = 15
@@ -71,7 +74,7 @@ class CiscoSSH:
         self.monitor_timeout = m_timeout
         attempts = 0
         connected = False
-        while attempts < 10 and not connected:
+        while attempts < 20 and not connected:
             try:
                 self.child = pexpect.spawn("ssh %s@%s" % (self.switch_name, self.switch_ip))
                 self.child.timeout = 15
@@ -87,7 +90,33 @@ class CiscoSSH:
                 connected = True
                 print("Connected!")
             except (pexpect.EOF, pexpect.TIMEOUT) as e:
-                if attempts < 9:
+                if attempts < 20:
+                    print("Attempt #%s failed! i'm triyng again!" % attempts)
+                else:
+                    print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n" % e)
+                self.child.close()
+                attempts += 1
+
+    def connect_with_attempts(self, max_attempts):
+        attempts = 0
+        connected = False
+        while attempts < max_attempts and not connected:
+            try:
+                self.child = pexpect.spawn("ssh %s@%s" % (self.switch_name, self.switch_ip))
+                self.child.timeout = 15
+                self.child.expect('Password:')
+                self.child.sendline(self.switch_pwd)
+                self.child.expect('>')
+                self.child.sendline('terminal length 0')
+                self.child.expect('>')
+                self.child.sendline('enable')
+                self.child.expect('Password:')
+                self.child.sendline(self.switch_en_pwd)
+                self.child.expect('%s#' % self.switch_name)
+                connected = True
+                print("Connected!")
+            except (pexpect.EOF, pexpect.TIMEOUT) as e:
+                if attempts < max_attempts:
                     print("Attempt #%s failed! i'm triyng again!" % attempts)
                 else:
                     print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n" % e)

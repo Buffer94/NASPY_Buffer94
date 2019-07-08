@@ -3,15 +3,15 @@ import pyshark
 from scapy.all import *
 from SSHConnettors import *
 
+
 class NetInterface:
 
     def __init__(self, interface):
         self.interface = interface
-        self.filter = "arp"
         self.timeout = 60
         self.switch_ip = 'null'
-        self.switch_interface = ''
-        self.switch_MAC = ''
+        self.switch_interface = 'null'
+        self.switch_MAC = 'null'
         self.capture = ''
         self.ssh = 'null'
 
@@ -36,7 +36,17 @@ class NetInterface:
         print("Connecting to SSH...")
         #TODO SWITCH FOR VENDOR ADDRESS
         self.ssh = CiscoSSH(self.switch_ip, switch_name, switch_pwd, switch_en_pwd, self.switch_interface, self.timeout)
-        # monitor.add_switch(ssh.take_interfaces())
+        self.ssh.connect()
+
+    def parameterized_ssh_connection(self, switch_ip, switch_name, switch_pwd, switch_en_pwd, switch_interface, attempts = 0):
+        print("Connecting to SSH...")
+        #TODO SWITCH FOR VENDOR ADDRESS
+        self.ssh = CiscoSSH(switch_ip, switch_name, switch_pwd, switch_en_pwd, switch_interface, self.timeout)
+
+        if attempts == 0:
+            self.ssh.connect()
+        else:
+            self.ssh.connect_with_attempts(attempts)
 
     def enable_monitor_mode(self):
         if self.ssh != 'null':
@@ -62,9 +72,3 @@ class NetInterface:
     def send_dns_request(self):
         print('sending dns request...')
         #TODO
-
-    def sniff(self):
-        print('start sniffing...')
-        # self.capture = pyshark.LiveCapture(interface=self.interface)
-        # self.capture.apply_on_packets()
-        # self.capture.sniff(timeout=self.timeout)

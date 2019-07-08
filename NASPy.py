@@ -47,29 +47,6 @@ if mode == 'no':
     print('%s \n %s' % (usage, full_usage))
     sys.exit(0)
 
-net_interface = NetInterface(interface)
-
-net_interface.wait_cdp_packet()
-net_interface.ssh_connection()
-
-if mode == 'dhcp' or mode == 'all':
-    net_interface.send_dhcp_discover()
-
-if mode == 'dns' or mode == 'all':
-    net_interface.send_dns_request()
-
-# TODO ANALISI
-
-vlan_monitor = VlanMonitor()
-stp_monitor = STPMonitor()
-arp_monitor = ArpMonitor()
-dhcp_monitor = RogueDHCPMonitor()
-
-if mode == 'stp':
-    net_interface.take_interfaces(stp_monitor)
-
-net_interface.enable_monitor_mode()
-
 
 def update_callback(pkt):
     if mode == 'all':
@@ -83,7 +60,6 @@ def update_callback(pkt):
             vlan_monitor.update_vlan_table(pkt)
         if pkt.highest_layer.upper() == 'BOOTP':
             dhcp_monitor.update_dhcp_servers(pkt)
-        print('all')
 
     if mode == 'dns':
         # TODO
@@ -106,8 +82,28 @@ def update_callback(pkt):
         if pkt.stp.type == '0x80' or pkt.stp.type == '0x80000000':
             stp_monitor.set_root_port(packet.stp.bridge_hw, packet.eth.src)
         stp_monitor.update_switches_table(pkt)
-        print('stp')
 
+
+net_interface = NetInterface(interface)
+
+net_interface.wait_cdp_packet()
+net_interface.ssh_connection()
+
+if mode == 'dhcp' or mode == 'all':
+    net_interface.send_dhcp_discover()
+
+if mode == 'dns' or mode == 'all':
+    net_interface.send_dns_request()
+
+vlan_monitor = VlanMonitor()
+stp_monitor = STPMonitor()
+arp_monitor = ArpMonitor()
+dhcp_monitor = RogueDHCPMonitor()
+
+if mode == 'stp':
+    net_interface.take_interfaces(stp_monitor)
+
+net_interface.enable_monitor_mode()
 
 print('start sniffing...')
 net_interface.capture = pyshark.LiveCapture(interface=net_interface.interface)
@@ -115,3 +111,9 @@ try:
     net_interface.capture.apply_on_packets(update_callback, timeout=net_interface.timeout)
 except Exception:
     print('Capture finished!')
+
+if mode == 'stp' or mode == 'all':
+    stp_monitor.find_root_port(interface)
+
+    for switch in stp_monitor.switches_table:
+        switch.print_port_status()

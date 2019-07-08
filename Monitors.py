@@ -1,5 +1,5 @@
 from NetworkElements import *
-
+from NetInterface import *
 
 class RogueDHCPMonitor:
 
@@ -137,22 +137,58 @@ class STPMonitor:
                     if port.MAC == sender_mac:
                         port.increase_pkg_counter()
 
-    def check_root_port(self):
+    def find_root_port(self, my_host_interface):
+        timeout = 10
+        net_interface = NetInterface(my_host_interface)
         for switch in self.switches_table:
-            blocked_port = list()
-            for port in switch.ports:
-                if port.status == "Blocked":
-                    blocked_port.append(port)
+            priority_min = 60000
+            MAC_min = 'null'
+            root_port = 'null'
+            blocked_port = switch.get_blocked_port()
             if len(blocked_port) > 1:
-                max = 0
-                root = 'null'
                 for port in blocked_port:
-                    if port.pkg_counter > max:
-                        max = port.pkg_counter
-                        root = port.MAC
-                    print(">>>>>DEBUG<<<<< max: %s  -  current %s" % (max, port.pkg_counter))
-                if root != 'null':
-                    switch.set_root_port(root)
+                    time.sleep(timeout * 2)
+                    net_interface.parameterized_ssh_connection(switch.ip, switch.name, switch.password,
+                                                               switch.en_password, switch.connected_interface, 20)
+                    print('start sniffing on %s (%s)...' % (port.name, port.MAC))
+                    port_capture = pyshark.LiveCapture(interface=net_interface.interface,
+                                                       display_filter="stp && stp.bridge.hw != %s" % switch.bridge_id)
+                    net_interface.ssh.enable_monitor_mode_on_specific_port(port.name)
+                    try:
+                        port_capture.sniff(packet_count=1, timeout=timeout)
+                    except Exception:
+                        print('Capture on %s finished!' % port.name)
+                    pkt = port_capture[0]
+                    if int(pkt.stp.bridge_prio) < priority_min:
+                        priority_min = int(pkt.stp.bridge_prio)
+                        MAC_min = pkt.stp.bridge_hw
+                        root_port = port.MAC
+                    else:
+                        if MAC_min == 'null':
+                            priority_min = int(pkt.stp.bridge_prio)
+                            MAC_min = pkt.stp.bridge_hw
+                            root_port = port.MAC
+                        else:
+                            if int(pkt.stp.bridge_prio) == priority_min:
+                                raw_mac_min = ''
+                                raw_mac_curr = ''
+                                mac_parts_min = MAC_min.split(':')
+                                for part in mac_parts_min:
+                                    raw_mac_min += part
+                                mac_parts_curr = pkt.stp.bridge_hw.split(':')
+                                for part in mac_parts_curr:
+                                    raw_mac_curr += part
+
+                                int_mac_min = int(raw_mac_min, 16)
+                                int_mac_curr = int(raw_mac_curr, 16)
+
+                                if int_mac_curr < int_mac_min:
+                                    priority_min = int(pkt.stp.bridge_prio)
+                                    MAC_min = pkt.stp.bridge_hw
+                                    root_port = port.MAC
+
+                if root_port != 'null':
+                    switch.set_root_port(root_port)
             else:
                 if len(blocked_port) == 1:
                     switch.set_root_port(blocked_port[0].MAC)
