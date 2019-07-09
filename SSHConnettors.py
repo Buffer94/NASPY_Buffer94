@@ -154,6 +154,7 @@ class CiscoSSH:
         return switch
 
     def put_callback(self):
+        print("I'm trying to enable the callback")
         self.child.sendline('configure terminal')
         self.child.expect('\(config\)#')
         self.child.sendline('event manager applet no-monitor-session')
@@ -170,14 +171,35 @@ class CiscoSSH:
         self.child.expect('\(config-applet\)#')
         self.child.sendline('end')
         self.child.expect('%s#' % self.switch_name)
+        print("Finished!")
 
     def enable_monitor_mode(self):
         try:
+            print("Enabling monitor mode...")
             self.put_callback()
             self.child.sendline('configure terminal')
             self.child.expect('\(config\)#')
 
             for interface in self.switch_interfaces:
+                if interface != self.connected_interface:
+                    self.child.sendline('monitor session 1 source interface %s' % interface)
+                    self.child.expect('\(config\)#')
+
+            self.child.sendline(
+                'monitor session 1 destination interface %s encapsulation replicate' % self.connected_interface)
+            self.child.expect('\(config\)#')
+            self.child.close()
+        except (pexpect.EOF, pexpect.TIMEOUT) as e:
+            print("Connection Closed!")
+
+    def enable_monitor_mode_on_interface_range(self, interfaces):
+        try:
+            print("Enabling monitor mode...")
+            self.put_callback()
+            self.child.sendline('configure terminal')
+            self.child.expect('\(config\)#')
+
+            for interface in interfaces:
                 if interface != self.connected_interface:
                     self.child.sendline('monitor session 1 source interface %s' % interface)
                     self.child.expect('\(config\)#')

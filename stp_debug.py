@@ -1,6 +1,5 @@
 from NetInterface import *
 from Monitors import STPMonitor
-import time
 
 usage = "Usage: -i [interface], -m [mode]"
 
@@ -16,7 +15,7 @@ net_interface.ssh_connection()
 
 stp_monitor = STPMonitor()
 
-net_interface.take_interfaces(stp_monitor)
+stp_monitor.add_switch(net_interface.take_interfaces())
 net_interface.enable_monitor_mode()
 
 
@@ -34,19 +33,25 @@ try:
 except Exception:
     print('Capture finished!')
 
+# stp_monitor.find_root_port(interface)
+#
+# stp_monitor.print_switches_status()
 while(True):
     if mode == 'stp':
         stp_monitor.find_root_port(interface)
 
-        for switch in stp_monitor.switches_table:
-            switch.print_port_status()
-
+        stp_monitor.print_switches_status()
+        time.sleep(60)
+        print("Finding topology changes!")
         # Find Topology Change
-        topology_cng_capture = pyshark.LiveCapture(interface=interface, display_filter="stp.flags.tc == 1")
-        try:
-            topology_cng_capture.sniff(packet_count = 1, timeout=300)
-        except Exception:
-            print('No changes in Topology!')
+        topology_cng_pkg = pyshark.LiveCapture(interface=interface, display_filter="stp.flags.tc == 1")
+        # try:
+        topology_cng_pkg.sniff(packet_count = 1, timeout=300)
 
-        if len(topology_cng_capture) > 0:
-            print("miao")
+        if len(topology_cng_pkg) > 0:
+            print("Found topology changes!")
+            stp_monitor.discover_topology_changes(interface)
+        else:
+            print('No changes in Topology!')
+        # except Exception as e:
+        #     print('No changes in Topology! %s' % e)

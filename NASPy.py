@@ -101,7 +101,7 @@ arp_monitor = ArpMonitor()
 dhcp_monitor = RogueDHCPMonitor()
 
 if mode == 'stp':
-    net_interface.take_interfaces(stp_monitor)
+    stp_monitor.add_switch(net_interface.take_interfaces())
 
 net_interface.enable_monitor_mode()
 
@@ -115,5 +115,4 @@ except Exception:
 if mode == 'stp' or mode == 'all':
     stp_monitor.find_root_port(interface)
 
-    for switch in stp_monitor.switches_table:
-        switch.print_port_status()
+    stp_monitor.print_switches_status()

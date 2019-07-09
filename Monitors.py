@@ -1,5 +1,7 @@
 from NetworkElements import *
 from NetInterface import *
+import time
+
 
 class RogueDHCPMonitor:
 
@@ -115,13 +117,13 @@ class STPMonitor:
 
     def __init__(self):
         self.switches_table = list()
+        self.switch_table_temp = dict()
 
     def update_switches_table(self, packet):
-        sender_mac = packet.eth.src
         for switch in self.switches_table:
             if packet.highest_layer.upper() == 'STP':
+                sender_mac = packet.eth.src
                 if switch.bridge_id == packet.stp.bridge_hw:
-                    sender_mac = packet.eth.src
                     switch.set_designated_port(sender_mac)
                 else:
                     if switch.bridge_id == '' and switch.contains(sender_mac):
@@ -132,10 +134,138 @@ class STPMonitor:
                         else:
                             switch.is_root_bridge = False
                         switch.set_designated_port(sender_mac)
+
+    def discover_topology_changes(self, my_host_interface):
+        net_interface = NetInterface(my_host_interface)
+        net_interface.timeout = 20
+        net_interface.wait_cdp_packet()
+        net_interface.ssh_connection()
+        self.parse_switch_table_for_topology_change()
+
+        for switch_tmp in self.switch_table_temp:
+            sw = self.get_specific_switch(switch_tmp)
+            switch_interfaces = sw.get_interfaces()
+            switch_interfaces.remove(sw.connected_interface)
+            net_interface.ssh.enable_monitor_mode_on_interface_range(switch_interfaces)
+            net_interface.capture = pyshark.LiveCapture(interface=net_interface.interface, display_filter="stp")
+            try:
+                net_interface.capture.apply_on_packets(self.topology_change_pkt_callback, timeout=net_interface.timeout)
+            except Exception:
+                print('Capture finished! _____DEBUG_____')
+            if len(switch_tmp) > 0:
+                if len(switch_tmp) == 1:
+                    for switch in self.switches_table:
+                        if switch.bridge_id == switch_tmp:
+                            for port in switch:
+                                if port.MAC == self.switch_table_temp[switch_tmp][0] \
+                                        and (port.status == 'Blocked' or port.status == 'Designated'):
+                                    print("Port %s has switched his state from % to Root" % (port.name, port.status))
+                                    self.switch_table_temp[switch_tmp].remove(port.MAC)
+                                    port.set_port_as_root()
+                else:
+                    print("FAGLIO HERE?")
+                    switch = self.get_specific_switch(switch_tmp)
+                    # switch = self.switches_table[self.switches_table.index(switch_tmp)]
+                    print("DEBUG______HERE_AFTER_SWITCH_DECLARATION")
+                    if switch is not None:
+                        priority_min = 60000
+                        timeout = 10
+                        MAC_min = 'null'
+                        root_port = 'null'
+                        blocked_port = self.switch_table_temp[switch_tmp]
+                        net_interface_port = NetInterface(my_host_interface)
+                        net_interface_port.timeout = 20
+                        for port in blocked_port:
+                            time.sleep(timeout * 2)
+                            net_interface_port.parameterized_ssh_connection(switch.ip, switch.name, switch.password,
+                                                                            switch.en_password, switch.connected_interface,
+                                                                            20)
+                            print('start sniffing on %s...' % port)
+                            port_capture = pyshark.LiveCapture(interface=net_interface.interface,
+                                                               display_filter="stp && stp.bridge.hw != %s" % switch.bridge_id)
+                            net_interface_port.ssh.enable_monitor_mode_on_specific_port(switch.get_port(port).name)
+                            try:
+                                port_capture.sniff(packet_count=1, timeout=timeout)
+                            except Exception:
+                                print('Capture on %s finished!' % port.name)
+                            pkt = port_capture[0]
+                            if int(pkt.stp.bridge_prio) < priority_min:
+                                priority_min = int(pkt.stp.bridge_prio)
+                                MAC_min = pkt.stp.bridge_hw
+                                root_port = switch.get_port(port).MAC
+                            else:
+                                if MAC_min == 'null':
+                                    priority_min = int(pkt.stp.bridge_prio)
+                                    MAC_min = pkt.stp.bridge_hw
+                                    root_port = switch.get_port(port).MAC
+                                else:
+                                    if int(pkt.stp.bridge_prio) == priority_min:
+                                        raw_mac_min = ''
+                                        raw_mac_curr = ''
+                                        mac_parts_min = MAC_min.split(':')
+                                        for part in mac_parts_min:
+                                            raw_mac_min += part
+                                        mac_parts_curr = pkt.stp.bridge_hw.split(':')
+                                        for part in mac_parts_curr:
+                                            raw_mac_curr += part
+
+                                        int_mac_min = int(raw_mac_min, 16)
+                                        int_mac_curr = int(raw_mac_curr, 16)
+
+                                        if int_mac_curr < int_mac_min:
+                                            priority_min = int(pkt.stp.bridge_prio)
+                                            MAC_min = pkt.stp.bridge_hw
+                                            root_port = switch.get_port(port).MAC
+
+                        if root_port != 'null':
+                            for port in switch.ports:
+                                for p in blocked_port:
+                                    if port.MAC == root_port:
+                                        if port.MAC == p and (port.status == 'Designated' or port.status == 'Blocked'):
+                                            print(
+                                                "Port %s has switched his state from %s to Root" % (port.name, port.status))
+                                            switch.set_root_port(root_port)
+                                            self.switch_table_temp[switch_tmp].remove(p)
+                                    else:
+                                        if port.MAC == p and (port.status == 'Designated' or port.status == 'Root'):
+                                            print("Port %s has switched his state from %s to Blocked"
+                                                  % (port.name, port.status))
+                                            switch.set_blocked_port(port.MAC)
+                                            self.switch_table_temp[switch_tmp].remove(p)
+                    else:
+                        print("Switch is none!")
+
+    def parse_switch_table_for_topology_change(self):
+        for switch in self.switches_table:
+            if not switch.bridge_id in self.switch_table_temp:
+                self.switch_table_temp[switch.bridge_id] = list()
+                for port in switch.ports:
+                    if port.name != switch.connected_interface:
+                        self.switch_table_temp[switch.bridge_id].append(port.MAC)
             else:
                 for port in switch.ports:
-                    if port.MAC == sender_mac:
-                        port.increase_pkg_counter()
+                    if port.MAC not in self.switch_table_temp[switch.bridge_id] and port.name != switch.connected_interface:
+                        self.switch_table_temp[switch.bridge_id].append(port.MAC)
+
+    def topology_change_pkt_callback(self, packet):
+        sender_mac = packet.eth.src
+        packet_bridge_id = packet.stp.bridge_hw
+
+        if packet_bridge_id in self.switch_table_temp and sender_mac in self.switch_table_temp[packet_bridge_id]:
+            self.switch_table_temp[packet_bridge_id].remove(sender_mac)
+            for switch in self.switches_table:
+                if switch.bridge_id == packet_bridge_id:
+                    for port in switch.ports:
+                        if port.MAC == sender_mac:
+                            if packet.stp.type == '0x80' or packet.stp.type == '0x80000000':
+                                if port.status == 'Blocked' or port.status == 'Designated':
+                                    print("Port %s has switched his state from % to Root" % (port.name, port.status))
+                                    port.set_port_as_root()
+                            else:
+                                if port.status == 'Blocked' or port.status == 'Root':
+                                    print("Port %s has switched his state from % to Designated"
+                                          % (port.name, port.status))
+                                    port.set_port_as_designated()
 
     def find_root_port(self, my_host_interface):
         timeout = 10
@@ -144,54 +274,56 @@ class STPMonitor:
             priority_min = 60000
             MAC_min = 'null'
             root_port = 'null'
-            blocked_port = switch.get_blocked_port()
-            if len(blocked_port) > 1:
-                for port in blocked_port:
-                    time.sleep(timeout * 2)
-                    net_interface.parameterized_ssh_connection(switch.ip, switch.name, switch.password,
-                                                               switch.en_password, switch.connected_interface, 20)
-                    print('start sniffing on %s (%s)...' % (port.name, port.MAC))
-                    port_capture = pyshark.LiveCapture(interface=net_interface.interface,
-                                                       display_filter="stp && stp.bridge.hw != %s" % switch.bridge_id)
-                    net_interface.ssh.enable_monitor_mode_on_specific_port(port.name)
-                    try:
-                        port_capture.sniff(packet_count=1, timeout=timeout)
-                    except Exception:
-                        print('Capture on %s finished!' % port.name)
-                    pkt = port_capture[0]
-                    if int(pkt.stp.bridge_prio) < priority_min:
-                        priority_min = int(pkt.stp.bridge_prio)
-                        MAC_min = pkt.stp.bridge_hw
-                        root_port = port.MAC
-                    else:
-                        if MAC_min == 'null':
+            if not switch.there_is_root_port():
+                blocked_port = switch.get_blocked_port()
+                if len(blocked_port) > 1:
+                    for port in blocked_port:
+                        time.sleep(timeout * 2)
+                        net_interface.parameterized_ssh_connection(switch.ip, switch.name, switch.password,
+                                                                   switch.en_password, switch.connected_interface, 20)
+                        print('start sniffing on %s (%s)...' % (port.name, port.MAC))
+                        port_capture = pyshark.LiveCapture(interface=net_interface.interface,
+                                                           display_filter="stp && stp.bridge.hw != %s" % switch.bridge_id)
+                        net_interface.ssh.enable_monitor_mode_on_specific_port(port.name)
+                        try:
+                            port_capture.sniff(packet_count=1, timeout=timeout)
+                        except Exception:
+                            print('Capture on %s finished!' % port.name)
+                        pkt = port_capture[0]
+                        if int(pkt.stp.bridge_prio) < priority_min:
                             priority_min = int(pkt.stp.bridge_prio)
                             MAC_min = pkt.stp.bridge_hw
                             root_port = port.MAC
                         else:
-                            if int(pkt.stp.bridge_prio) == priority_min:
-                                raw_mac_min = ''
-                                raw_mac_curr = ''
-                                mac_parts_min = MAC_min.split(':')
-                                for part in mac_parts_min:
-                                    raw_mac_min += part
-                                mac_parts_curr = pkt.stp.bridge_hw.split(':')
-                                for part in mac_parts_curr:
-                                    raw_mac_curr += part
+                            if MAC_min == 'null':
+                                priority_min = int(pkt.stp.bridge_prio)
+                                MAC_min = pkt.stp.bridge_hw
+                                root_port = port.MAC
+                            else:
+                                if int(pkt.stp.bridge_prio) == priority_min:
+                                    raw_mac_min = ''
+                                    raw_mac_curr = ''
+                                    mac_parts_min = MAC_min.split(':')
+                                    for part in mac_parts_min:
+                                        raw_mac_min += part
+                                    mac_parts_curr = pkt.stp.bridge_hw.split(':')
+                                    for part in mac_parts_curr:
+                                        raw_mac_curr += part
 
-                                int_mac_min = int(raw_mac_min, 16)
-                                int_mac_curr = int(raw_mac_curr, 16)
+                                    int_mac_min = int(raw_mac_min, 16)
+                                    int_mac_curr = int(raw_mac_curr, 16)
 
-                                if int_mac_curr < int_mac_min:
-                                    priority_min = int(pkt.stp.bridge_prio)
-                                    MAC_min = pkt.stp.bridge_hw
-                                    root_port = port.MAC
+                                    if int_mac_curr < int_mac_min:
+                                        priority_min = int(pkt.stp.bridge_prio)
+                                        MAC_min = pkt.stp.bridge_hw
+                                        root_port = port.MAC
 
-                if root_port != 'null':
-                    switch.set_root_port(root_port)
-            else:
-                if len(blocked_port) == 1:
-                    switch.set_root_port(blocked_port[0].MAC)
+                    if root_port != 'null':
+                        switch.set_root_port(root_port)
+                else:
+                    if len(blocked_port) == 1:
+                        print("I want to set %s as root port" % blocked_port[0].name)
+                        switch.set_root_port(blocked_port[0].MAC)
 
     def set_root_port(self, bridge_hw, port_mac):
         print(">>>>>DEBUG<<<<<I want to set %s as root port of %s" %(bridge_hw, port_mac))
@@ -207,6 +339,8 @@ class STPMonitor:
         for switch in self.switches_table:
             switch.print_port_status()
 
-    def discover_topology_change(self):
-        print('')
-        # TODO
+    def get_specific_switch(self, switch_id):
+        for switch in self.switches_table:
+            if switch.bridge_id == switch_id:
+                return switch
+        return None

@@ -8,7 +8,7 @@ class NetInterface:
 
     def __init__(self, interface):
         self.interface = interface
-        self.timeout = 60
+        self.timeout = 30
         self.switch_ip = 'null'
         self.switch_interface = 'null'
         self.switch_MAC = 'null'
@@ -38,7 +38,8 @@ class NetInterface:
         self.ssh = CiscoSSH(self.switch_ip, switch_name, switch_pwd, switch_en_pwd, self.switch_interface, self.timeout)
         self.ssh.connect()
 
-    def parameterized_ssh_connection(self, switch_ip, switch_name, switch_pwd, switch_en_pwd, switch_interface, attempts = 0):
+    def parameterized_ssh_connection(self, switch_ip, switch_name, switch_pwd, switch_en_pwd, switch_interface,
+                                     attempts = 0):
         print("Connecting to SSH...")
         #TODO SWITCH FOR VENDOR ADDRESS
         self.ssh = CiscoSSH(switch_ip, switch_name, switch_pwd, switch_en_pwd, switch_interface, self.timeout)
@@ -52,9 +53,9 @@ class NetInterface:
         if self.ssh != 'null':
             self.ssh.enable_monitor_mode()
 
-    def take_interfaces(self, monitor):
+    def take_interfaces(self):
         if self.ssh != 'null':
-            monitor.add_switch(self.ssh.take_interfaces())
+            return self.ssh.take_interfaces()
 
     def send_dhcp_discover(self):
         print('sending dhcp discover...')

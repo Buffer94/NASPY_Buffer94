@@ -34,6 +34,13 @@ class Switch:
         self.bridge_priority = b_p
         self.is_root_bridge = rb
 
+    def get_interfaces(self):
+        interfaces = list()
+        for port in self.ports:
+            interfaces.append(port.name)
+
+        return interfaces
+
     def add_ports(self, port):
         if port not in self.ports:
             self.ports.append(port)
@@ -42,6 +49,11 @@ class Switch:
         for port in self.ports:
             if port.MAC == port_address:
                 port.set_port_as_designated()
+
+    def set_blocked_port(self, port_address):
+        for port in self.ports:
+            if port.MAC == port_address:
+                port.set_port_as_blocked()
 
     def set_root_port(self, port_address):
         for port in self.ports:
@@ -52,15 +64,20 @@ class Switch:
         for port in self.ports:
             print("Port: %s - Address: %s, Status: %s" % (port.name, port.MAC, port.status))
 
-    def contain_root_port(self):
+    def get_port(self, port_mac):
         for port in self.ports:
-            if port.status == "Root":
-                return True
-        return False
+            if port.MAC == port_mac:
+                return port
 
     def contains(self, port_address):
         for port in self.ports:
             if port.MAC == port_address:
+                return True
+        return False
+
+    def there_is_root_port(self):
+        for port in self.ports:
+            if port.status == 'Root':
                 return True
         return False
 
@@ -73,8 +90,6 @@ class Switch:
                     there_is_root = True
                 if port.status == 'Blocked':
                     out.append(port)
-        if there_is_root:
-            out = list()
         return out
 
 
@@ -84,15 +99,9 @@ class Port:
         self.name = n
         self.MAC = m
         self.status = "Blocked"
-        self.pkg_counter = 0
-
-    def increase_pkg_counter(self):
-        if self.status == "Blocked":
-            self.pkg_counter += 1
 
     def set_port_as_designated(self):
         self.status = "Designated"
-        self.pkg_counter = 0
 
     def set_port_as_root(self):
         self.status = "Root"
