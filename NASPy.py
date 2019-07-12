@@ -112,7 +112,27 @@ try:
 except Exception:
     print('Capture finished!')
 
-if mode == 'stp' or mode == 'all':
+stop = False
+if mode == 'stp':
     stp_monitor.find_root_port(interface)
 
-    stp_monitor.print_switches_status()
+while not stop:
+    if mode == 'stp':
+        stp_monitor.print_switches_status()
+
+        #TODO
+        #add a way to escape.
+
+        time.sleep(60)
+        print("Finding topology changes!")
+        topology_cng_pkg = pyshark.LiveCapture(interface=interface, display_filter="stp.flags.tc == 1")
+        # try:
+        topology_cng_pkg.sniff(packet_count=1, timeout=300)
+
+        if len(topology_cng_pkg) > 0:
+            print("Found topology changes!")
+            stp_monitor.discover_topology_changes(interface)
+        else:
+            print('No changes in Topology!')
+        # except Exception as e:
+        #     print('No changes in Topology! %s' % e)

@@ -169,6 +169,8 @@ class CiscoSSH:
         self.child.expect('\(config-applet\)#')
         self.child.sendline('action 04 cli command "end"')
         self.child.expect('\(config-applet\)#')
+        self.child.sendline('action 05 cli command "exit"')
+        self.child.expect('\(config-applet\)#')
         self.child.sendline('end')
         self.child.expect('%s#' % self.switch_name)
         print("Finished!")
@@ -207,9 +209,9 @@ class CiscoSSH:
             self.child.sendline(
                 'monitor session 1 destination interface %s encapsulation replicate' % self.connected_interface)
             self.child.expect('\(config\)#')
-            self.child.close()
         except (pexpect.EOF, pexpect.TIMEOUT) as e:
             print("Connection Closed!")
+        self.child.close()
 
     def enable_monitor_mode_on_specific_port(self, port_name):
         try:
@@ -222,6 +224,6 @@ class CiscoSSH:
             self.child.sendline(
                 'monitor session 1 destination interface %s encapsulation replicate' % self.connected_interface)
             self.child.expect('\(config\)#')
-            self.child.close()
         except (pexpect.EOF, pexpect.TIMEOUT) as e:
             print("Connection Closed!")
+        self.child.close()

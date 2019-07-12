@@ -151,7 +151,7 @@ class STPMonitor:
             try:
                 net_interface.capture.apply_on_packets(self.topology_change_pkt_callback, timeout=net_interface.timeout)
             except Exception:
-                print('Capture finished! _____DEBUG_____')
+                print('Capture finished!')
             if len(switch_tmp) > 0:
                 if len(switch_tmp) == 1:
                     for switch in self.switches_table:
@@ -163,10 +163,7 @@ class STPMonitor:
                                     self.switch_table_temp[switch_tmp].remove(port.MAC)
                                     port.set_port_as_root()
                 else:
-                    print("FAGLIO HERE?")
                     switch = self.get_specific_switch(switch_tmp)
-                    # switch = self.switches_table[self.switches_table.index(switch_tmp)]
-                    print("DEBUG______HERE_AFTER_SWITCH_DECLARATION")
                     if switch is not None:
                         priority_min = 60000
                         timeout = 10
@@ -255,6 +252,12 @@ class STPMonitor:
             self.switch_table_temp[packet_bridge_id].remove(sender_mac)
             for switch in self.switches_table:
                 if switch.bridge_id == packet_bridge_id:
+                    if switch.bridge_priority != packet.stp.bridge_prio:
+                        print("Bridge priority is changed!! from %s to %s" % (switch.bridge_priority, packet.stp.bridge_prio))
+                        switch.bridge_priority = packet.stp.bridge_prio
+                    if packet.stp.root_hw == switch.bridge_id and not switch.is_root_bridge:
+                        print("Topology Change! not this switch (%s) is the Root Bridge!" % switch.bridge_id)
+                        switch.is_root_bridge = True
                     for port in switch.ports:
                         if port.MAC == sender_mac:
                             if packet.stp.type == '0x80' or packet.stp.type == '0x80000000':
