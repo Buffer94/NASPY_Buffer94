@@ -46,7 +46,7 @@ class CiscoSSH:
                 self.child.close()
 
     def connect_with_no_host_auth(self):
-        print("I'm trying to acknlowledge the authenticity of the new host")
+        print("I'm trying to acknowledge the authenticity of the new host")
         try:
             self.child = pexpect.spawn("ssh %s@%s" % (self.switch_name, self.switch_ip))
             self.child.expect('The authenticity of host')

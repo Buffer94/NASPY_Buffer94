@@ -20,7 +20,7 @@ class Switch:
 
     def __init__(self, n, ip, pwd, en_pwd, conn_interface):
         self.name = n
-        self.bridge_id = ''
+        self.bridge_id = None
         self.bridge_priority = 0
         self.is_root_bridge = True
         self.ports = list()
@@ -38,7 +38,6 @@ class Switch:
         interfaces = list()
         for port in self.ports:
             interfaces.append(port.name)
-
         return interfaces
 
     def add_ports(self, port):
@@ -94,7 +93,6 @@ class Switch:
 
 
 class Port:
-
     def __init__(self, n, m):
         self.name = n
         self.MAC = m
