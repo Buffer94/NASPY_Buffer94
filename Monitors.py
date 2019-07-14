@@ -184,7 +184,7 @@ class STPMonitor:
                                 pkt = port_capture[0]
                                 bridge_id_min, root_port = self.get_min_bridge_id(pkt, bridge_id_min, switch.get_port(port).MAC, root_port)
                             except Exception:
-                                print('Capture on %s finished!' % port.name)
+                                print('Capture on %s finished!' % switch.get_port(port).name)
 
                         if root_port is not None:
                             for port in switch.ports:
@@ -321,6 +321,7 @@ class STPMonitor:
 
     def print_switches_status(self):
         for switch in self.switches_table:
+            print("\nSwitch %s:" % switch.name)
             switch.print_port_status()
 
     def get_switch(self, switch_id):

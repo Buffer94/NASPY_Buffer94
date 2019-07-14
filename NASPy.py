@@ -123,7 +123,9 @@ while not stop:
         #TODO
         #add a way to escape.
 
-        time.sleep(60)
+        # time.sleep(10)
+        # #TODO Invece di aspettare 60 secondi inutilmente, aggiungere un modulo per pulire le linee vty
+
         print("Finding topology changes!")
         topology_cng_pkg = pyshark.LiveCapture(interface=interface, display_filter="stp.flags.tc == 1")
         try:
@@ -135,4 +137,4 @@ while not stop:
             else:
                 print('No changes in Topology!')
         except Exception as e:
-            print('No changes in Topology! %s' % e)
+            print('No changes in Topology! %s' % e.with_traceback())

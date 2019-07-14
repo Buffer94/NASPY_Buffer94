@@ -173,8 +173,9 @@ class CiscoSSH:
 
     def enable_monitor_mode(self):
         try:
-            print("Enabling monitor mode...")
+            self.clear_vty_line()
             self.put_callback()
+            print("Enabling monitor mode...")
             self.child.sendline('configure terminal')
             self.child.expect('\(config\)#')
 
@@ -192,8 +193,9 @@ class CiscoSSH:
 
     def enable_monitor_mode_on_interface_range(self, interfaces):
         try:
-            print("Enabling monitor mode...")
+            self.clear_vty_line()
             self.put_callback()
+            print("Enabling monitor mode...")
             self.child.sendline('configure terminal')
             self.child.expect('\(config\)#')
 
@@ -211,7 +213,9 @@ class CiscoSSH:
 
     def enable_monitor_mode_on_specific_port(self, port_name):
         try:
+            self.clear_vty_line()
             self.put_callback()
+            print("Enabling monitor mode...")
             self.child.timeout = 5
             self.child.sendline('configure terminal')
             self.child.expect('\(config\)#')
@@ -223,3 +227,12 @@ class CiscoSSH:
         except (pexpect.EOF, pexpect.TIMEOUT):
             print("Connection Closed!")
         self.child.close()
+
+    def clear_vty_line(self):
+        print("Clearing vty lines")
+        for i in range(5):
+            self.child.sendline('clear line vty %s' % i)
+            self.child.expect('[confirm]')
+            self.child.sendline('\n')
+            self.child.expect('%s#' % self.switch.name)
+        print("Done!")

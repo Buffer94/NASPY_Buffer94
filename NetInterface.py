@@ -36,7 +36,7 @@ class NetInterface:
         print("Connecting to SSH...")
         #TODO SWITCH FOR VENDOR ADDRESS
         self.ssh = CiscoSSH(self.switch_interface, self.timeout)
-        self.ssh.connect(self.switch_ip, switch_name, switch_pwd, switch_en_pwd)
+        self.ssh.connect_with_attempts(self.switch_ip, switch_name, switch_pwd, switch_en_pwd, 20)
 
     def parameterized_ssh_connection(self, switch_ip, switch_name, switch_pwd, switch_en_pwd, switch_interface,
                                      attempts=0):
