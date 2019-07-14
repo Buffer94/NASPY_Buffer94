@@ -9,7 +9,7 @@ full_usage = "mode options: \n" \
              "dns: IDS system for DNS Hijack Attack" \
              "vlan: Monitoring vlan that pass through a switch" \
              "stp: Monitoring STP Status and eventually failure" \
-             "default: When no other options are chosen on default this switch will perform all modality"
+             "default: When no other options are chosen this script will perform all modality"
 
 print ("Welcome to NasPy --Buffer94_Module--")
 
@@ -28,7 +28,7 @@ else:
             print (usage)
         sys.exit(0)
 
-    mode = 'no'
+    mode = None
     if sys.argv[3] == '-m':
         if sys.argv[4] == 'arp':
             mode = 'arp'
@@ -43,7 +43,7 @@ else:
     else:
         mode = 'all'
 
-if mode == 'no':
+if mode is None:
     print('%s \n %s' % (usage, full_usage))
     sys.exit(0)
 
@@ -126,13 +126,13 @@ while not stop:
         time.sleep(60)
         print("Finding topology changes!")
         topology_cng_pkg = pyshark.LiveCapture(interface=interface, display_filter="stp.flags.tc == 1")
-        # try:
-        topology_cng_pkg.sniff(packet_count=1, timeout=300)
+        try:
+            topology_cng_pkg.sniff(packet_count=1, timeout=300)
 
-        if len(topology_cng_pkg) > 0:
-            print("Found topology changes!")
-            stp_monitor.discover_topology_changes(interface)
-        else:
-            print('No changes in Topology!')
-        # except Exception as e:
-        #     print('No changes in Topology! %s' % e)
+            if len(topology_cng_pkg) > 0:
+                print("Found topology changes!")
+                stp_monitor.discover_topology_changes(interface)
+            else:
+                print('No changes in Topology!')
+        except Exception as e:
+            print('No changes in Topology! %s' % e)

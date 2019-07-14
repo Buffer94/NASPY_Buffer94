@@ -127,7 +127,6 @@ class STPMonitor:
                     switch.set_designated_port(sender_mac)
                 else:
                     if switch.bridge_id is None and switch.contains(sender_mac):
-                        rb = None;
                         if packet.stp.root_hw == packet.stp.bridge_hw:
                             rb = True
                         else:

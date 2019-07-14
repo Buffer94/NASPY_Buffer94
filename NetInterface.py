@@ -9,11 +9,11 @@ class NetInterface:
     def __init__(self, interface):
         self.interface = interface
         self.timeout = 30
-        self.switch_ip = 'null'
-        self.switch_interface = 'null'
-        self.switch_MAC = 'null'
-        self.capture = ''
-        self.ssh = 'null'
+        self.switch_ip = None
+        self.switch_interface = None
+        self.switch_MAC = None
+        self.capture = None
+        self.ssh = None
 
     def wait_cdp_packet(self):
         print("Wait for CDP Packet ... ")
@@ -27,7 +27,7 @@ class NetInterface:
         self.switch_interface = pkt.cdp.portid
 
     def ssh_connection(self):
-        if self.switch_ip == 'null':
+        if self.switch_ip is None:
             self.switch_ip = input('switch_ip: ')
         switch_name = input('switch username: ')
         switch_pwd = getpass.getpass('password: ')
@@ -35,26 +35,26 @@ class NetInterface:
 
         print("Connecting to SSH...")
         #TODO SWITCH FOR VENDOR ADDRESS
-        self.ssh = CiscoSSH(self.switch_ip, switch_name, switch_pwd, switch_en_pwd, self.switch_interface, self.timeout)
-        self.ssh.connect()
+        self.ssh = CiscoSSH(self.switch_interface, self.timeout)
+        self.ssh.connect(self.switch_ip, switch_name, switch_pwd, switch_en_pwd)
 
     def parameterized_ssh_connection(self, switch_ip, switch_name, switch_pwd, switch_en_pwd, switch_interface,
-                                     attempts = 0):
+                                     attempts=0):
         print("Connecting to SSH...")
         #TODO SWITCH FOR VENDOR ADDRESS
-        self.ssh = CiscoSSH(switch_ip, switch_name, switch_pwd, switch_en_pwd, switch_interface, self.timeout)
+        self.ssh = CiscoSSH(switch_interface, self.timeout)
 
         if attempts == 0:
-            self.ssh.connect()
+            self.ssh.connect(switch_ip, switch_name, switch_pwd, switch_en_pwd)
         else:
-            self.ssh.connect_with_attempts(attempts)
+            self.ssh.connect_with_attempts(switch_ip, switch_name, switch_pwd, switch_en_pwd, attempts)
 
     def enable_monitor_mode(self):
-        if self.ssh != 'null':
+        if self.ssh is not None:
             self.ssh.enable_monitor_mode()
 
     def take_interfaces(self):
-        if self.ssh != 'null':
+        if self.ssh is not None:
             return self.ssh.take_interfaces()
 
     def send_dhcp_discover(self):
