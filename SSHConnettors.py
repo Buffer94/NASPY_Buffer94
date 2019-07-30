@@ -110,9 +110,12 @@ class CiscoSSH:
                 self.child.sendline(en_pwd)
                 self.child.expect('%s#' % name)
                 connected = True
-                print("Connected!")
                 self.switch = Switch(name, ip, pwd, en_pwd, self.connected_interface)
+                print("Connected!")
             except (pexpect.EOF, pexpect.TIMEOUT) as e:
+                if "Password" in str(self.child.before):
+                    print("Wrong Credentials..")
+                    break
                 if attempts < max_attempts:
                     print("Attempt #%s failed! i'm triyng again!" % attempts)
                 else:

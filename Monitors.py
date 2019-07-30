@@ -21,6 +21,7 @@ class RogueDHCPMonitor:
                 if not found:
                     new_dhcp_server = DHCPServer(pkt_ip, pkt_mac)
                     self.dhcp_servers.append(new_dhcp_server)
+                    self.print_dhcp_servers()
             else:
                 new_dhcp_server = DHCPServer(pkt_ip, pkt_mac)
                 self.dhcp_servers.append(new_dhcp_server)
@@ -42,8 +43,8 @@ class ArpMonitor:
         found = False
 
         if len(self.arp_table) > 0:
-            for pair in self.arp_table:
-                if pair[0] == sender_mac and pair[1] == sender_ip:
+            for tuple in self.arp_table:
+                if tuple[0] == sender_mac and tuple[1] == sender_ip:
                     found = True
 
             if not found:
@@ -139,6 +140,7 @@ class STPMonitor:
         net_interface.timeout = 20
         net_interface.wait_cdp_packet()
         net_interface.ssh_connection()
+        # net_interface.ssh_no_credential_connection()
         self.parse_switch_table_for_topology_change()
 
         for switch_tmp in self.switch_table_TC:

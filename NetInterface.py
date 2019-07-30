@@ -3,7 +3,6 @@ import pyshark
 from scapy.all import *
 from SSHConnettors import *
 
-
 class NetInterface:
 
     def __init__(self, interface):
@@ -49,6 +48,17 @@ class NetInterface:
         else:
             self.ssh.connect_with_attempts(switch_ip, switch_name, switch_pwd, switch_en_pwd, attempts)
 
+    def ssh_no_credential_connection(self):
+        if self.switch_ip is not None:
+            print("Connecting to SSH...")
+            # TODO SWITCH FOR VENDOR ADDRESS
+
+            credentials = self.read_credentials()
+
+            for name, pwd, en_pwd in credentials:
+                self.ssh = CiscoSSH(self.switch_interface, self.timeout)
+                self.ssh.connect_with_attempts(self.switch_ip, name, pwd, en_pwd, 5)
+
     def enable_monitor_mode(self):
         if self.ssh is not None:
             self.ssh.enable_monitor_mode()
@@ -60,7 +70,8 @@ class NetInterface:
     def send_dhcp_discover(self):
         print('sending dhcp discover...')
         local_mac = get_if_hwaddr(self.interface)
-        local_mac_raw = get_if_raw_hwaddr(self.interface)
+        # local_mac_raw = get_if_raw_hwaddr(self.interface)
+        local_mac_raw = get_if_hwaddr(self.interface)
         broad_mac = 'ff:ff:ff:ff:ff:ff'
         source_ip = '0.0.0.0'
         dest_ip = '255.255.255.255'
@@ -73,3 +84,15 @@ class NetInterface:
     def send_dns_request(self):
         print('sending dns request...')
         #TODO
+
+    def read_credentials(self):
+        credentials = list()
+
+        with open('credentials.naspy') as raw_data:
+            for raw_item in raw_data:
+                if ':' in raw_item:
+                    item = raw_item.strip('\n')
+                    name, pwd, en_pwd = item.split(':')
+                    credentials.append((name, pwd, en_pwd))
+
+        return credentials

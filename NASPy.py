@@ -11,9 +11,9 @@ full_usage = "mode options: \n" \
              "stp: Monitoring STP Status and eventually failure" \
              "default: When no other options are chosen this script will perform all modality"
 
-print ("Welcome to NasPy --Buffer94_Module--")
+print ("Welcome to NASPy --Buffer94_Module--")
 
-if len(sys.argv) < 5:
+if len(sys.argv) < 3:
     print("Error, you must enter an Interface name and a modality")
     print(usage)
     sys.exit(0)
@@ -29,7 +29,7 @@ else:
         sys.exit(0)
 
     mode = None
-    if sys.argv[3] == '-m':
+    if len(sys.argv) > 4 and sys.argv[3] == '-m':
         if sys.argv[4] == 'arp':
             mode = 'arp'
         if sys.argv[4] == 'dhcp':
@@ -67,11 +67,10 @@ def update_callback(pkt):
 
     if mode == 'dhcp' and pkt.highest_layer.upper() == 'BOOTP':
         dhcp_monitor.update_dhcp_servers(pkt)
-        print('dhcp')
+        #net_interface.send_dhcp_discover()
 
     if mode == 'arp' and pkt.highest_layer.upper() == 'ARP':
         arp_monitor.update_arp_table(pkt)
-        print('arp')
 
     if mode == 'vlan' and pkt.highest_layer.upper() == 'STP':
         # TODO potrei prendere tutti i pacchetti, non solo gli STP.
@@ -86,24 +85,26 @@ def update_callback(pkt):
 
 net_interface = NetInterface(interface)
 
-net_interface.wait_cdp_packet()
-net_interface.ssh_connection()
-
-if mode == 'dhcp' or mode == 'all':
-    net_interface.send_dhcp_discover()
-
-if mode == 'dns' or mode == 'all':
-    net_interface.send_dns_request()
+# net_interface.ssh_no_credential_connection()
 
 vlan_monitor = VlanMonitor()
 stp_monitor = STPMonitor()
 arp_monitor = ArpMonitor()
 dhcp_monitor = RogueDHCPMonitor()
 
+if mode == 'dhcp' or mode == 'all':
+    net_interface.send_dhcp_discover()
+else:
+    net_interface.wait_cdp_packet()
+    net_interface.ssh_connection()
+
 if mode == 'stp':
     stp_monitor.add_switch(net_interface.take_interfaces())
+    net_interface.enable_monitor_mode()
 
-net_interface.enable_monitor_mode()
+if mode == 'dns' or mode == 'all':
+    net_interface.send_dns_request()
+
 
 print('start sniffing...')
 net_interface.capture = pyshark.LiveCapture(interface=net_interface.interface)
