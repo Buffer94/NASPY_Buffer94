@@ -1,29 +1,32 @@
 from NetInterface import *
 from Monitors import STPMonitor
+from Monitors import VlanMonitor
 
 usage = "Usage: -i [interface], -m [mode]"
 
 print ("Welcome to NasPy --Buffer94_Module-- ####STP_DEBUG####")
 
 interface = 'enp0s3'
-mode = 'stp'
 
 net_interface = NetInterface(interface)
+switch_table = list()
 
 net_interface.wait_cdp_packet()
 net_interface.ssh_connection()
 
 stp_monitor = STPMonitor()
+vlan_monitor = VlanMonitor()
 
-stp_monitor.add_switch(net_interface.take_interfaces())
+switch_table.append(net_interface.take_interfaces())
+
+# stp_monitor.add_switch(net_interface.take_interfaces())
 net_interface.enable_monitor_mode()
 
 
 def update_callback(pkt):
-    if mode == 'stp':
-        if pkt.highest_layer.upper() == 'STP' and (pkt.stp.type == '0x80' or pkt.stp.type == '0x80000000'):
-            stp_monitor.set_root_port(packet.stp.bridge_hw, packet.eth.src)
-        stp_monitor.update_switches_table(pkt)
+    if pkt.highest_layer.upper() == 'STP' and (pkt.stp.type == '0x80' or pkt.stp.type == '0x80000000'):
+        stp_monitor.set_root_port(packet.stp.bridge_hw, packet.eth.src)
+    stp_monitor.update_switches_table(pkt)
 
 
 print('start sniffing...')

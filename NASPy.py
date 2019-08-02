@@ -51,7 +51,7 @@ if mode is None:
 def update_callback(pkt):
     if mode == 'all':
         if pkt.highest_layer.upper() == 'STP' and (pkt.stp.type == '0x80' or pkt.stp.type == '0x80000000'):
-            stp_monitor.set_root_port(packet.stp.bridge_hw, packet.eth.src)
+            stp_monitor.set_root_port(pkt.stp.bridge_hw, pkt.eth.src)
         stp_monitor.update_switches_table(pkt)
         if pkt.highest_layer.upper() == 'ARP':
             arp_monitor.update_arp_table(pkt)
@@ -79,7 +79,7 @@ def update_callback(pkt):
 
     if mode == 'stp' and pkt.highest_layer.upper() == 'STP':
         if pkt.stp.type == '0x80' or pkt.stp.type == '0x80000000':
-            stp_monitor.set_root_port(packet.stp.bridge_hw, packet.eth.src)
+            stp_monitor.set_root_port(pkt.stp.bridge_hw, pkt.eth.src)
         stp_monitor.update_switches_table(pkt)
 
 
@@ -94,11 +94,10 @@ dhcp_monitor = RogueDHCPMonitor()
 
 if mode == 'dhcp' or mode == 'all':
     net_interface.send_dhcp_discover()
-else:
+
+if mode == 'stp' or mode == 'all':
     net_interface.wait_cdp_packet()
     net_interface.ssh_connection()
-
-if mode == 'stp':
     stp_monitor.add_switch(net_interface.take_interfaces())
     net_interface.enable_monitor_mode()
 

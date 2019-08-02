@@ -118,6 +118,10 @@ class CiscoSSH:
                     break
                 if attempts < max_attempts:
                     print("Attempt #%s failed! i'm triyng again!" % attempts)
+                if "Host key verification failed." in str(self.child.before):
+                    print("Host key verification failed. Retring!")
+                    os.system('ssh-keygen -f "/root/.ssh/known_hosts" -R %s' % ip)
+                    self.connect_with_no_host_auth(ip, name, pwd, en_pwd)
                 else:
                     print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n" % e)
                 self.child.close()

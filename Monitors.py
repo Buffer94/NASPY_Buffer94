@@ -121,11 +121,12 @@ class STPMonitor:
         self.switch_table_TC = dict()
 
     def update_switches_table(self, packet):
-        for switch in self.switches_table:
-            if packet.highest_layer.upper() == 'STP':
+        if packet.highest_layer.upper() == 'STP':
+            for switch in self.switches_table:
                 sender_mac = packet.eth.src
+                vlan_id = packet.stp.bridge_ext
                 if switch.bridge_id == packet.stp.bridge_hw:
-                    switch.set_designated_port(sender_mac)
+                    switch.set_designated_port(sender_mac, vlan_id)
                 else:
                     if switch.bridge_id is None and switch.contains(sender_mac):
                         if packet.stp.root_hw == packet.stp.bridge_hw:
@@ -133,7 +134,7 @@ class STPMonitor:
                         else:
                             rb = False
                         switch.set_bridge_info(packet.stp.bridge_hw, packet.stp.bridge_prio, rb)
-                        switch.set_designated_port(sender_mac)
+                        switch.set_designated_port(sender_mac, vlan_id)
 
     def discover_topology_changes(self, my_host_interface):
         net_interface = NetInterface(my_host_interface)
@@ -251,31 +252,59 @@ class STPMonitor:
         for switch in self.switches_table:
             bridge_id_min = (60000, None) #Priority, Mac
             root_port = None
-            if not switch.there_is_root_port():
-                blocked_port = switch.get_blocked_port()
-                if len(blocked_port) > 1:
-                    for port in blocked_port:
-                        time.sleep(timeout * 2)
-                        net_interface.parameterized_ssh_connection(switch.ip, switch.name, switch.password,
-                                                                   switch.en_password, switch.connected_interface, 20)
-                        print('start sniffing on %s (%s)...' % (port.name, port.MAC))
-                        port_capture = pyshark.LiveCapture(interface=net_interface.interface,
-                                                           display_filter="stp && stp.bridge.hw != %s"
-                                                                          % switch.bridge_id)
-                        net_interface.ssh.enable_monitor_mode_on_specific_port(port.name)
-                        try:
-                            port_capture.sniff(packet_count=1, timeout=timeout)
-                            pkt = port_capture[0]
-                            bridge_id_min, root_port = self.get_min_bridge_id(pkt, bridge_id_min, port.MAC, root_port)
-                        except Exception:
-                            print('Capture on %s finished!' % port.name)
+            if not switch.all_root_port_found():
+                for vlan_id in switch.vlans:
+                    if not switch.there_is_root_port(vlan_id):
+                        blocked_port = switch.get_blocked_port_per_vlan(vlan_id)
+                        if len(blocked_port) > 1:
+                            for port in blocked_port:
+                                time.sleep(timeout * 2)
+                                net_interface.parameterized_ssh_connection(switch.ip, switch.name, switch.password,
+                                                                           switch.en_password, switch.connected_interface, 20)
+                                print('start sniffing on %s (%s)...' % (port.name, port.MAC))
+                                port_capture = pyshark.LiveCapture(interface=net_interface.interface,
+                                                                   display_filter="stp && stp.bridge.hw != %s"
+                                                                                  % switch.bridge_id)
+                                net_interface.ssh.enable_monitor_mode_on_specific_port(port.name)
+                                try:
+                                    port_capture.sniff(packet_count=1, timeout=timeout)
+                                    pkt = port_capture[0]
+                                    bridge_id_min, root_port = self.get_min_bridge_id(pkt, bridge_id_min, port.MAC,
+                                                                                      root_port)
+                                except Exception:
+                                    print('Capture on %s finished!' % port.name)
+                        else:
+                            if len(blocked_port) == 1:
+                                root_port = blocked_port[0].MAC
 
-                    if root_port != 'null':
-                        switch.set_root_port(root_port)
-                else:
-                    if len(blocked_port) == 1:
-                        print("I want to set %s as root port" % blocked_port[0].name)
-                        switch.set_root_port(blocked_port[0].MAC)
+                        if root_port is not None:
+                            switch.set_root_port(root_port, vlan_id)
+
+
+                # blocked_port = switch.get_blocked_port()
+                # if len(blocked_port) > 1:
+                #     for port in blocked_port:
+                #         time.sleep(timeout * 2)
+                #         net_interface.parameterized_ssh_connection(switch.ip, switch.name, switch.password,
+                #                                                    switch.en_password, switch.connected_interface, 20)
+                #         print('start sniffing on %s (%s)...' % (port.name, port.MAC))
+                #         port_capture = pyshark.LiveCapture(interface=net_interface.interface,
+                #                                            display_filter="stp && stp.bridge.hw != %s"
+                #                                                           % switch.bridge_id)
+                #         net_interface.ssh.enable_monitor_mode_on_specific_port(port.name)
+                #         try:
+                #             port_capture.sniff(packet_count=1, timeout=timeout)
+                #             pkt = port_capture[0]
+                #             bridge_id_min, root_port = self.get_min_bridge_id(pkt, bridge_id_min, port.MAC, root_port)
+                #         except Exception:
+                #             print('Capture on %s finished!' % port.name)
+                #
+                #     if root_port != 'null':
+                #         switch.set_root_port(root_port)
+                # else:
+                #     if len(blocked_port) == 1:
+                #         print("I want to set %s as root port" % blocked_port[0].name)
+                #         switch.set_root_port(blocked_port[0].MAC)
 
     def get_min_bridge_id(self, pkt, bridge_min_id, port_mac, root_port):
         if int(pkt.stp.bridge_prio) < bridge_min_id[0]:
@@ -324,7 +353,8 @@ class STPMonitor:
     def print_switches_status(self):
         for switch in self.switches_table:
             print("\nSwitch %s:" % switch.name)
-            switch.print_port_status()
+            #switch.print_port_status()
+            switch.print_spanning_tree()
 
     def get_switch(self, switch_id):
         for switch in self.switches_table:
