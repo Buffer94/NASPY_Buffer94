@@ -149,8 +149,8 @@ class CiscoSSH:
                   mac_parts[1][2:4] + ':' + mac_parts[2][:2] + ':' + mac_parts[2][2:4]
             self.switch.add_ports(Port(name, mac))
 
-            if name == self.connected_interface:
-                self.switch.set_designated_port(mac)
+            # if name == self.connected_interface:
+            #     self.switch.set_designated_port(mac)
 
             if name not in self.switch_interfaces:
                 self.switch_interfaces.append(name)
