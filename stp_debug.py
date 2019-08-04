@@ -43,22 +43,22 @@ except Exception as e:
 # stp_monitor.find_root_port(interface)
 #
 # stp_monitor.print_switches_status()
-while(True):
-        stp_monitor.set_connected_interface_status(interface)
-        stp_monitor.find_root_port(interface)
+# while(True):
+stp_monitor.set_connected_interface_status(interface)
+stp_monitor.find_root_port(interface)
 
-        stp_monitor.print_switches_status()
-        # time.sleep(60)
-        # print("Finding topology changes!")
-        # # Find Topology Change
-        # topology_cng_pkg = pyshark.LiveCapture(interface=interface, display_filter="stp.flags.tc == 1")
-        # try:
-        #     topology_cng_pkg.sniff(packet_count = 1, timeout=300)
-        #
-        #     if len(topology_cng_pkg) > 0:
-        #         print("Found topology changes!")
-        #         stp_monitor.discover_topology_changes(interface)
-        #     else:
-        #         print('No changes in Topology!')
-        # except Exception as e:
-        #     print('No changes in Topology! %s' % e)
+stp_monitor.print_switches_status()
+# time.sleep(60)
+# print("Finding topology changes!")
+# # Find Topology Change
+# topology_cng_pkg = pyshark.LiveCapture(interface=interface, display_filter="stp.flags.tc == 1")
+# try:
+#     topology_cng_pkg.sniff(packet_count = 1, timeout=300)
+#
+#     if len(topology_cng_pkg) > 0:
+#         print("Found topology changes!")
+#         stp_monitor.discover_topology_changes(interface)
+#     else:
+#         print('No changes in Topology!')
+# except Exception as e:
+#     print('No changes in Topology! %s' % e)

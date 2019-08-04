@@ -19,6 +19,48 @@ class DHCPServer:
         return False
 
 
+class SpanningTreeInstance:
+
+    def __init__(self, vlan_id):
+        self.ports = list()
+        self.vlan_id = vlan_id
+        self.priority = 60000
+        self.bridge_id = None
+        self.root_bridge_id = None
+        self.root_bridge = False
+
+    def get_blocked_port(self):
+        out = list()
+        for port in self.ports:
+            if port.pvlan_status[self.vlan_id] == "Blocked":
+                out.append(port)
+        return out
+
+    def add_port(self, port):
+        if port not in self.ports:
+            self.ports.append(port)
+
+    def update_stp_info(self, priority, bridge_id, root_bridge_id):
+        self.priority = int(priority) + int(self.vlan_id)
+        self.bridge_id = bridge_id
+        self.root_bridge_id = root_bridge_id
+        self.root_bridge = True if self.bridge_id == self.root_bridge_id else False
+
+    def there_is_root_port(self):
+        for port in self.ports:
+            if port.pvlan_status[self.vlan_id] == "Root":
+                return True
+        return False
+
+    def print_stp_status(self):
+        print("Spanning Tree on Vlan: %s" % self.vlan_id)
+        print("Root Bridge: %s - Bridge: %s - Priority: %s" % (self.root_bridge_id, self.bridge_id, self.priority))
+        if self.root_bridge:
+            print("This switch is the Root Bridge")
+        for port in self.ports:
+            print("Port: %s - Address: %s, Status: %s" % (port.name, port.MAC, port.pvlan_status[self.vlan_id]))
+
+
 class Switch:
 
     def __init__(self, n, ip, pwd, en_pwd, conn_interface):
@@ -30,8 +72,6 @@ class Switch:
         self.en_password = en_pwd
         self.connected_interface = conn_interface
         self.spanning_tree_instances = dict()
-        self.vlans = list()
-        self.stp_info = dict()
 
     def get_interfaces(self):
         interfaces = list()
@@ -49,25 +89,21 @@ class Switch:
                 self.add_port_to_spanning_tree(vlan_id, port, priority, b_id)
                 port.set_port_as_designated(vlan_id, override)
 
-    def set_blocked_port(self, port_address, vlan_id, override=False):
+    def set_blocked_port(self, port_address, vlan_id, override=False, priority=None, b_id=None):
         for port in self.ports:
             if port.MAC == port_address:
-                self.add_port_to_spanning_tree(vlan_id, port)
+                self.add_port_to_spanning_tree(vlan_id, port, priority, b_id)
                 port.set_port_as_blocked(vlan_id, override)
 
-    def set_root_port(self, port_address, vlan_id, override=False):
-        print("ASDASDADS - root_port %s - vlan %s" % (port_address, vlan_id))
+    def set_root_port(self, port_address, vlan_id, override=False, priority=None, b_id=None):
         for port in self.ports:
             if port.MAC == port_address:
-                print("I want to set %s as root for vlan %s" %(port.MAC, vlan_id))
-                self.add_port_to_spanning_tree(vlan_id, port)
+                self.add_port_to_spanning_tree(vlan_id, port, priority, b_id)
                 port.set_port_as_root(vlan_id, override)
 
     def print_spanning_tree(self):
         for vlan_id in self.spanning_tree_instances:
-            print("Spanning Tree on Vlan: %s" % vlan_id)
-            for port in self.spanning_tree_instances[vlan_id]:
-                print("Port: %s - Address: %s, Status: %s" % (port.name, port.MAC, port.pvlan_status[vlan_id]))
+            self.spanning_tree_instances[vlan_id].print_stp_status()
 
     def get_port(self, port_mac):
         for port in self.ports:
@@ -85,40 +121,25 @@ class Switch:
                 return True
         return False
 
-    def add_port_to_spanning_tree(self, vlan_id, port, priority=None, b_id=None):
-        self.add_vlan(vlan_id)
+    def add_port_to_spanning_tree(self, vlan_id, port, priority=None, r_id=None):
         if vlan_id in self.spanning_tree_instances:
-            if port not in self.spanning_tree_instances[vlan_id]:
-                self.spanning_tree_instances[vlan_id].append(port)
+            self.spanning_tree_instances[vlan_id].add_port(port)
         else:
-            self.spanning_tree_instances[vlan_id] = list()
-            self.spanning_tree_instances[vlan_id].append(port)
-            if b_id is not None and priority is not None:
-                if b_id == self.bridge_id:
-                    rb = True
-                else:
-                    rb = False
-                self.stp_info[vlan_id] = (priority, rb)
-
-    def add_vlan(self, vlan_id):
-        if vlan_id not in self.vlans:
-            self.vlans.append(vlan_id)
+            self.spanning_tree_instances[vlan_id] = SpanningTreeInstance(vlan_id)
+            self.spanning_tree_instances[vlan_id].add_port(port)
+        if r_id is not None and priority is not None:
+            self.spanning_tree_instances[vlan_id].update_stp_info(priority, self.bridge_id, r_id)
 
     def there_is_root_port(self, vlan_id):
-        for port in self.spanning_tree_instances[vlan_id]:
-            if port.pvlan_status[vlan_id] == "Root":
-                return True
-        return False
+        return self.spanning_tree_instances[vlan_id].there_is_root_port()
 
     def all_root_port_found(self):
-        for vlan_id in self.vlans:
-            found = False
-            for port in self.spanning_tree_instances[vlan_id]:
-                if port.pvlan_status[vlan_id] == "Root":
-                    found = True
+        for vlan_id in self.get_vlans():
+            if not self.spanning_tree_instances[vlan_id].root_bridge:
+                found = self.spanning_tree_instances[vlan_id].there_is_root_port()
 
-            if not found:
-                return False
+                if not found:
+                    return False
         return True
 
     def get_trunk_port(self):
@@ -143,7 +164,7 @@ class Switch:
         return out
 
     def get_vlans(self):
-        return self.vlans
+        return self.spanning_tree_instances.keys()
 
 
 class Port:
