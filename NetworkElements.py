@@ -194,3 +194,8 @@ class Port:
 
     def get_vlan(self):
         return self.pvlan_status.keys()
+
+    def contain_vlan(self, vlan_id):
+        if vlan_id in self.pvlan_status:
+            return True
+        return False

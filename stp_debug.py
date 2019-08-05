@@ -17,7 +17,7 @@ net_interface.timeout = 20
 # net_interface.wait_cdp_packet()
 # net_interface.ssh_connection()
 
-net_interface.parameterized_ssh_connection('10.0.1.105', 'switch5', 'ciki', 'ciki', 'GigabitEthernet3/3')
+net_interface.parameterized_ssh_connection('10.0.1.102', 'switch2', 'ciki', 'ciki', 'GigabitEthernet1/3')
 
 stp_monitor = STPMonitor()
 # vlan_monitor = VlanMonitor()
@@ -43,22 +43,24 @@ except Exception as e:
 # stp_monitor.find_root_port(interface)
 #
 # stp_monitor.print_switches_status()
-# while(True):
-stp_monitor.set_connected_interface_status(interface)
-stp_monitor.find_root_port(interface)
+while(True):
+        stp_monitor.set_connected_interface_status(interface)
+        stp_monitor.find_root_port(interface)
 
-stp_monitor.print_switches_status()
-# time.sleep(60)
-# print("Finding topology changes!")
-# # Find Topology Change
-# topology_cng_pkg = pyshark.LiveCapture(interface=interface, display_filter="stp.flags.tc == 1")
-# try:
-#     topology_cng_pkg.sniff(packet_count = 1, timeout=300)
-#
-#     if len(topology_cng_pkg) > 0:
-#         print("Found topology changes!")
-#         stp_monitor.discover_topology_changes(interface)
-#     else:
-#         print('No changes in Topology!')
-# except Exception as e:
-#     print('No changes in Topology! %s' % e)
+        stp_monitor.print_switches_status()
+        #TODO
+        #add a way to escape.
+
+        print("Finding topology changes!")
+        topology_cng_pkg = pyshark.LiveCapture(interface=interface, display_filter="stp.flags.tc == 1")
+        try:
+            topology_cng_pkg.sniff(packet_count=1, timeout=300)
+
+            if len(topology_cng_pkg) > 0:
+                print("Found topology changes!")
+                stp_monitor.discover_topology_changes(interface)
+                stp_monitor.print_switches_status()
+            else:
+                print('No changes in Topology!')
+        except Exception as e:
+            print('No changes in Topology! %s' % e.with_traceback())

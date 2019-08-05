@@ -50,8 +50,6 @@ if mode is None:
 
 def update_callback(pkt):
     if mode == 'all':
-        if pkt.highest_layer.upper() == 'STP' and (pkt.stp.type == '0x80' or pkt.stp.type == '0x80000000'):
-            stp_monitor.set_root_port(pkt.stp.bridge_hw, pkt.eth.src)
         stp_monitor.update_switches_table(pkt)
         if pkt.highest_layer.upper() == 'ARP':
             arp_monitor.update_arp_table(pkt)
@@ -78,8 +76,6 @@ def update_callback(pkt):
         print('vlan')
 
     if mode == 'stp' and pkt.highest_layer.upper() == 'STP':
-        if pkt.stp.type == '0x80' or pkt.stp.type == '0x80000000':
-            stp_monitor.set_root_port(pkt.stp.bridge_hw, pkt.eth.src)
         stp_monitor.update_switches_table(pkt)
 
 
