@@ -1,9 +1,10 @@
-from builtins import print
+from builtins import print, TimeoutError
 
 from NetworkElements import *
 from NetInterface import *
 import time
-
+import copy
+import traceback
 
 class RogueDHCPMonitor:
 
@@ -120,7 +121,7 @@ class STPMonitor:
 
     def __init__(self):
         self.switches_table = list()
-        self.switch_table_TC = dict()
+        self.switch_baseline = dict()
 
     def update_switches_table(self, pkt):
         if pkt.highest_layer.upper() == 'STP':
@@ -156,113 +157,173 @@ class STPMonitor:
     def discover_topology_changes(self, my_host_interface):
         net_interface = NetInterface(my_host_interface)
         net_interface.timeout = 20
+        # net_interface.wait_cdp_packet()
+        # net_interface.ssh_connection()
+
         net_interface.wait_cdp_packet()
-        net_interface.ssh_connection()
-        self.parse_switch_table_for_topology_change()
+        #####DEBUG#####
+        net_interface.parameterized_ssh_connection('10.0.1.102', 'switch2', 'ciki', 'ciki', 'GigabitEthernet1/3')
+        ###############
 
-        for switch_tmp in self.switch_table_TC:
-            sw = self.get_switch(switch_tmp)
-            switch_interfaces = sw.get_interfaces()
-            switch_interfaces.remove(sw.connected_interface)
-            net_interface.ssh.enable_monitor_mode_on_interface_range(switch_interfaces)
-            net_interface.capture = pyshark.LiveCapture(interface=net_interface.interface, display_filter="stp")
-            try:
-                net_interface.capture.apply_on_packets(self.topology_change_pkt_callback, timeout=net_interface.timeout)
-            except Exception:
-                print('Capture finished!')
-            if len(switch_tmp) > 0:
-                if len(switch_tmp) == 1:
-                    for switch in self.switches_table:
-                        if switch.bridge_id == switch_tmp:
-                            for port in switch:
-                                if port.MAC == self.switch_table_TC[switch_tmp][0] \
-                                        and (port.status == 'Blocked' or port.status == 'Designated'):
-                                    print("Port %s has switched his state from % to Root" % (port.name, port.status))
-                                    self.switch_table_TC[switch_tmp].remove(port.MAC)
-                                    port.set_port_as_root()
-                else:
-                    switch = self.get_switch(switch_tmp)
-                    if switch is not None:
-                        timeout = 10
-                        bridge_id_min = (60000, None)  # Priority, Mac
-                        root_port = None
-                        blocked_port = self.switch_table_TC[switch_tmp]
-                        net_interface_port = NetInterface(my_host_interface)
-                        net_interface_port.timeout = timeout
-                        for port in blocked_port:
-                            time.sleep(timeout * 2)
-                            net_interface_port.parameterized_ssh_connection(switch.ip, switch.name, switch.password,
-                                                                            switch.en_password, switch.connected_interface,
-                                                                            20)
-                            print('start sniffing on %s...' % port)
-                            port_capture = pyshark.LiveCapture(interface=net_interface.interface,
-                                                               display_filter="stp && stp.bridge.hw != %s" % switch.bridge_id)
-                            net_interface_port.ssh.enable_monitor_mode_on_specific_port(switch.get_port(port).name)
-                            try:
-                                port_capture.sniff(packet_count=1, timeout=timeout)
-                                pkt = port_capture[0]
-                                bridge_id_min, root_port = self.get_min_bridge_id(pkt, bridge_id_min, switch.get_port(port).MAC, root_port)
-                            except Exception:
-                                print('Capture on %s finished!' % switch.get_port(port).name)
-
-                        if root_port is not None:
-                            for port in switch.ports:
-                                for p in blocked_port:
-                                    if port.MAC == root_port:
-                                        if port.MAC == p and (port.status == 'Designated' or port.status == 'Blocked'):
-                                            print("Port %s has switched his state from %s to Root"
-                                                  % (port.name, port.status))
-                                            switch.set_root_port(root_port)
-                                            self.switch_table_TC[switch_tmp].remove(p)
-                                    else:
-                                        if port.MAC == p and (port.status == 'Designated' or port.status == 'Root'):
-                                            print("Port %s has switched his state from %s to Blocked"
-                                                  % (port.name, port.status))
-                                            switch.set_blocked_port(port.MAC)
-                                            self.switch_table_TC[switch_tmp].remove(p)
-                    else:
-                        print("Switch is none!")
-
-    def parse_switch_table_for_topology_change(self):
+        switch_port_mac = net_interface.switch_MAC
         for switch in self.switches_table:
-            if switch.bridge_id not in self.switch_table_TC:
-                self.switch_table_TC[switch.bridge_id] = list()
-                for port in switch.ports:
-                    if port.name != switch.connected_interface:
-                        self.switch_table_TC[switch.bridge_id].append(port.MAC)
-            else:
-                for port in switch.ports:
-                    if port.MAC not in self.switch_table_TC[switch.bridge_id] and port.name != switch.connected_interface:
-                        self.switch_table_TC[switch.bridge_id].append(port.MAC)
+            if switch.contains(switch_port_mac):
+                self.switch_baseline = copy.deepcopy(switch.spanning_tree_instances)
+                net_interface.ssh.enable_monitor_mode_on_interface_range(switch.get_interfaces())
+                tc_capture = pyshark.LiveCapture(interface=net_interface.interface)
+                try:
+                    tc_capture.apply_on_packets(self.tc_pkt_callback, timeout=net_interface.timeout)
+                except Exception:
+                    print('Capture finished!')
+                bridge_id_min = dict()
+                root_port = dict()
+                blocked_port = dict()
+                for vlan_id in switch.get_vlans():
+                    bridge_id_min[vlan_id] = (60000, None)  # Priority, Mac
+                    root_port[vlan_id] = None
+                    blocked_port[vlan_id] = None
 
-    def topology_change_pkt_callback(self, packet):
-        sender_mac = packet.eth.src
-        packet_bridge_id = packet.stp.bridge_hw
+                print("List of blocked ports:")
+                for p in self.take_blocked_port_from_baseline():
+                    print(p.name)
 
-        if packet_bridge_id in self.switch_table_TC and sender_mac in self.switch_table_TC[packet_bridge_id]:
-            self.switch_table_TC[packet_bridge_id].remove(sender_mac)
-            for switch in self.switches_table:
-                if switch.bridge_id == packet_bridge_id:
-                    if switch.bridge_priority != packet.stp.bridge_prio:
-                        print("Bridge priority is changed!! from %s to %s" % (switch.bridge_priority, packet.stp.bridge_prio))
-                        switch.bridge_priority = packet.stp.bridge_prio
-                    if packet.stp.root_hw == switch.bridge_id and not switch.is_root_bridge:
-                        print("Topology Change! not this switch (%s) is the Root Bridge!" % switch.bridge_id)
-                        switch.is_root_bridge = True
+                for port in self.take_blocked_port_from_baseline():
+                    time.sleep(net_interface.timeout)
+                    net_interface.parameterized_ssh_connection(switch.ip, switch.name, switch.password,
+                                                               switch.en_password, switch.connected_interface, 20)
+                    print('start sniffing on %s (%s)...' % (port.name, port.MAC))
+                    port_capture = pyshark.LiveCapture(interface=net_interface.interface,
+                                                       display_filter="stp")
+                    net_interface.ssh.enable_monitor_mode_on_specific_port(port.name)
+                    if port.trunk:
+                        rcvd_pkt = dict()
+                        try:
+                            port_capture.sniff(packet_count=len(switch.get_vlans()), timeout=10)
+                        except TimeoutError as e:
+                            print("TIMEOUT: %s" % e)
+                            print('Capture on %s finished!' % port.name)
+                        for pkt in port_capture:
+                            if pkt.stp.bridge_ext not in port.pvlan_status:
+                                switch.set_blocked_port(port.MAC, pkt.stp.bridge_ext,
+                                                        priority=pkt.stp.root_prio, b_id=pkt.stp.root_hw)
+                            if pkt.stp.bridge_ext not in rcvd_pkt and pkt.stp.bridge_hw != switch.bridge_id:
+                                # print("Add %s to rcvd_pkt on port %s" % (pkt.stp.bridge_ext, port.name))
+                                rcvd_pkt[pkt.stp.bridge_ext] = pkt
+
+                        for vlan in port.get_vlan():
+                            if vlan not in bridge_id_min:
+                                bridge_id_min[vlan] = (60000, None)
+                            if vlan not in root_port:
+                                root_port[vlan] = None
+                            if vlan not in blocked_port:
+                                blocked_port[vlan] = None
+                            # print("Port %s - vlans: %s - bridge_id_min %s - root port %s- rcvd_pkt %s:" %
+                            #       (port.name, port.get_vlan(), bridge_id_min, root_port, rcvd_pkt))
+                            if vlan in rcvd_pkt:
+                                bridge_id_min[vlan], root_port[vlan] = self.get_min_bridge_id(rcvd_pkt[vlan],
+                                                                                              bridge_id_min[vlan],
+                                                                                              port.MAC, root_port[vlan])
+                                if port.MAC != root_port[vlan]:
+                                    blocked_port[vlan] = port.MAC
+                    else:
+                        try:
+                            port_capture.sniff(packet_count=1, timeout=10)
+                        except TimeoutError as e:
+                            print("TIMEOUT: %s" % e)
+                            print('Capture on %s finished!' % port.name)
+                        if len(port_capture) > 0:
+                            pkt = port_capture[0]
+                            if pkt.stp.bridge_ext not in port.pvlan_status:
+                                switch.set_blocked_port(port.MAC, pkt.stp.bridge_ext,
+                                                        priority=pkt.stp.root_prio, b_id=pkt.stp.root_hw)
+                            vlan = pkt.stp.bridge_ext
+                            bridge_id_min[vlan], root_port[vlan] = self.get_min_bridge_id(pkt, bridge_id_min[vlan],
+                                                                                          port.MAC, root_port[vlan])
+                            if port.MAC != root_port[vlan]:
+                                # print('for now %s is blocked on vlan %s' % (port.name, vlan))
+                                blocked_port[vlan] = port.MAC
+
+            for vlan_id in switch.get_vlans():
+                if root_port[vlan_id] is not None:
                     for port in switch.ports:
-                        if port.MAC == sender_mac:
-                            if packet.stp.type == '0x80' or packet.stp.type == '0x80000000':
-                                if port.status == 'Blocked' or port.status == 'Designated':
-                                    print("Port %s has switched his state from % to Root" % (port.name, port.status))
-                                    port.set_port_as_root()
-                            else:
-                                if port.status == 'Blocked' or port.status == 'Root':
-                                    print("Port %s has switched his state from % to Designated"
-                                          % (port.name, port.status))
-                                    port.set_port_as_designated()
+                        if port.MAC == root_port[vlan_id]:
+                            if port.pvlan_status[vlan_id] != "Root":
+                                print("Port %s has switch his state on vlan %s - From %s to Root"
+                                      % (port.name, vlan_id, port.pvlan_status[vlan_id]))
+                                switch.set_root_port(root_port[vlan_id], vlan_id, override=True)
+                        if blocked_port[vlan_id] is not None and port.MAC == blocked_port[vlan_id]:
+                            if port.pvlan_status[vlan_id] != "Blocked":
+                                print("Port %s has switch his state on vlan %s - From %s to Blocked"
+                                      % (port.name, vlan_id, port.pvlan_status[vlan_id]))
+                            switch.set_blocked_port(blocked_port[vlan_id], vlan_id, override=True)
+
+    def tc_pkt_callback(self, pkt):
+        sender_mac = pkt.eth.src
+        if pkt.highest_layer.upper() == 'STP':
+            pkt_bridge_id = pkt.stp.bridge_hw
+            switch = self.get_switch(pkt_bridge_id)
+            if switch is not None:
+                port = switch.get_port(sender_mac)
+                pkt_vlan_id = pkt.stp.bridge_ext
+                if pkt_bridge_id == self.switch_baseline[pkt_vlan_id].bridge_id and self.port_in_baseline(port, pkt_vlan_id):
+                    #PRIORITY CHANGE
+                    old_prio = self.switch_baseline[pkt_vlan_id].priority
+                    if int(pkt_vlan_id) + int(pkt.stp.bridge_prio) != old_prio:
+                        print("Bridge (%s) priority on vlan %s is changed from %s to %s!!" % (pkt_bridge_id, pkt_vlan_id,
+                                                                                              old_prio,
+                                                                                              pkt.stp.bridge_prio))
+                        switch.set_stp_priority(pkt_vlan_id, pkt.stp.bridge_prio)
+                    #ROOT BRIDGE CHANGE
+                    old_root_bridge = self.switch_baseline[pkt_vlan_id].root_bridge_id
+                    pkt_root_id = pkt.stp.root_hw
+                    if pkt_root_id != old_root_bridge:
+                        print("Root Bridge Change! the new RB of vlan %s is %s" % (pkt_vlan_id, pkt_root_id))
+                        switch.set_stp_root_id(pkt_vlan_id, pkt_root_id)
+                    #PORT_STATUS_CHANGE
+                    if pkt_vlan_id in port.pvlan_status:
+                        port_status = port.pvlan_status[pkt_vlan_id]
+                        if port_status != "Designated":
+                            print("Port %s on vlan %s has switched his state from %s to Designated"
+                                  % (port.name, pkt_vlan_id, port_status))
+                            switch.set_designated_port(sender_mac, pkt_vlan_id, override=True)
+                        for bport in self.switch_baseline[pkt_vlan_id].ports:
+                            if bport.MAC == port.MAC:
+                                self.switch_baseline[pkt_vlan_id].ports.remove(bport)
+                    else:
+                        print("New vlan (%s) has added at this trunk port %s" % (pkt_vlan_id, sender_mac))
+                        switch.set_designated_port(sender_mac, pkt_vlan_id, priority=pkt.stp.root_prio, b_id=pkt_root_id)
+        else:
+            #NEW TRUNK PORT DISCOVER
+            if pkt.highest_layer.upper() == 'DTP' and (pkt.dtp.tas == '0x00000001' or pkt.dtp.tos == '0x00000001'):
+                for switch in self.switches_table:
+                    if switch.contains(sender_mac) and not switch.get_port(sender_mac).trunk:
+                        print("port %s is now trunk!" % sender_mac)
+                        switch.get_port(sender_mac).trunk = True
+                        for vlan in self.switch_baseline:
+                            for port in self.switch_baseline[vlan].ports:
+                                if port.MAC == sender_mac:
+                                    port.trunk = True
+            else:
+                if pkt.highest_layer.upper() == 'DTP' and (pkt.dtp.tas == '0x00000002' or pkt.dtp.tos == '0x00000000'):
+                    for switch in self.switches_table:
+                        if switch.contains(sender_mac) and switch.get_port(sender_mac).trunk:
+                            print("port %s is not trunk anymore!" % sender_mac)
+                            switch.get_port(sender_mac).trunk = False
+                            for vlan in self.switch_baseline:
+                                for port in self.switch_baseline[vlan].ports:
+                                    if port.MAC == sender_mac:
+                                        port.trunk = False
+
+    def take_blocked_port_from_baseline(self):
+        blocked_port = list()
+        for vlan in self.switch_baseline:
+            for port in self.switch_baseline[vlan].ports:
+                if port not in blocked_port:
+                    blocked_port.append(port)
+        return blocked_port
 
     def find_root_port(self, my_host_interface):
-        timeout = 20
+        timeout = 15
         net_interface = NetInterface(my_host_interface)
         net_interface.timeout = timeout
         for switch in self.switches_table:
@@ -273,29 +334,25 @@ class STPMonitor:
                 root_port[vlan_id] = None
 
             for port in switch.get_blocked_port():
+                print("Pre Waiting!")
                 time.sleep(timeout)
                 net_interface.parameterized_ssh_connection(switch.ip, switch.name, switch.password,
                                                            switch.en_password, switch.connected_interface, 20)
                 print('start sniffing on %s (%s)...' % (port.name, port.MAC))
                 port_capture = pyshark.LiveCapture(interface=net_interface.interface,
-                                                   display_filter="stp && stp.bridge.hw != %s"
-                                                                  % switch.bridge_id)
+                                                   display_filter="stp")
                 net_interface.ssh.enable_monitor_mode_on_specific_port(port.name)
                 rcvd_pkt = dict()
                 try:
-                    # print("Pre sniff")
-                    port_capture.sniff(packet_count=len(switch.get_vlans()), timeout=10)
-                    # print("post sniff")
+                    port_capture.sniff(packet_count=len(switch.get_vlans()))
                 except Exception as e:
                     print("TIMEOUT: %s" % e)
                     print('Capture on %s finished!' % port.name)
-
                 for pkt in port_capture:
                     if 'type' in pkt.eth.field_names and pkt.eth.type == '0x00008100':
                         port.trunk = True
                         tagged_vlan = pkt.vlan.id
                         switch.set_blocked_port(port.MAC, tagged_vlan)
-                        # print("Tagged_VLAN %s - pkt_Vlan: %s" %(tagged_vlan, pkt.stp.bridge_ext))
                         if pkt.stp.bridge_ext not in rcvd_pkt:
                             rcvd_pkt[pkt.stp.bridge_ext] = pkt
                         if tagged_vlan != pkt.stp.bridge_ext:
@@ -303,12 +360,10 @@ class STPMonitor:
                                                     priority=pkt.stp.root_prio, b_id=pkt.stp.root_hw)
                     else:
                         vlan_id = pkt.stp.bridge_ext
-                        print("AAAAAAAAAAAA_ %s" % vlan_id)
                         if vlan_id not in rcvd_pkt:
                             rcvd_pkt[vlan_id] = pkt
                         switch.set_blocked_port(port.MAC, vlan_id,
                                                 priority=pkt.stp.root_prio, b_id=pkt.stp.root_hw)
-                print("per quale motivo sono qui?")
                 if not port.trunk:
                     pkt = port_capture[0]
                     vlan = pkt.stp.bridge_ext
@@ -328,7 +383,6 @@ class STPMonitor:
             for vlan_id in switch.get_vlans():
                 if root_port[vlan_id] is not None:
                     switch.set_root_port(root_port[vlan_id], vlan_id, True)
-
 
     def get_min_bridge_id(self, pkt, bridge_min_id, port_mac, root_port):
         if int(pkt.stp.bridge_prio) < bridge_min_id[0]:
@@ -388,3 +442,9 @@ class STPMonitor:
             if switch.bridge_id == switch_id:
                 return switch
         return None
+
+    def port_in_baseline(self, port, vlan_id):
+        for p in self.switch_baseline[vlan_id].ports:
+            if port.MAC == p.MAC:
+                return True
+        return False

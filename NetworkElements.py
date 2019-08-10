@@ -44,6 +44,9 @@ class SpanningTreeInstance:
         self.priority = int(priority) + int(self.vlan_id)
         self.bridge_id = bridge_id
         self.root_bridge_id = root_bridge_id
+        self.check_root_bridge()
+
+    def check_root_bridge(self):
         self.root_bridge = True if self.bridge_id == self.root_bridge_id else False
 
     def there_is_root_port(self):
@@ -78,6 +81,13 @@ class Switch:
         for port in self.ports:
             interfaces.append(port.name)
         return interfaces
+
+    def set_stp_priority(self, vlan, priority):
+        self.spanning_tree_instances[vlan].priority = int(priority) + int(vlan)
+
+    def set_stp_root_id(self, vlan, root_id):
+        self.spanning_tree_instances[vlan].root_bridge_id = root_id
+        self.spanning_tree_instances[vlan].check_root_bridge()
 
     def add_ports(self, port):
         if port not in self.ports:

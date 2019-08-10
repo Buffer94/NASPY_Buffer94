@@ -116,12 +116,12 @@ class CiscoSSH:
                 if "Password" in str(self.child.before):
                     print("Wrong Credentials..")
                     break
-                if attempts < max_attempts:
-                    print("Attempt #%s failed! i'm triyng again!" % attempts)
                 if "Host key verification failed." in str(self.child.before):
                     print("Host key verification failed. Retring!")
                     os.system('ssh-keygen -f "/root/.ssh/known_hosts" -R %s' % ip)
                     self.connect_with_no_host_auth(ip, name, pwd, en_pwd)
+                if attempts < max_attempts:
+                    print("Attempt #%s failed! i'm triyng again!" % attempts)
                 else:
                     print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n" % e)
                 self.child.close()
@@ -148,10 +148,6 @@ class CiscoSSH:
             mac = mac_parts[0][:2] + ':' + mac_parts[0][2:4] + ':' + mac_parts[1][:2] + ':' + \
                   mac_parts[1][2:4] + ':' + mac_parts[2][:2] + ':' + mac_parts[2][2:4]
             self.switch.add_ports(Port(name, mac))
-
-            # if name == self.connected_interface:
-            #     self.switch.set_designated_port(mac)
-
             if name not in self.switch_interfaces:
                 self.switch_interfaces.append(name)
         return self.switch

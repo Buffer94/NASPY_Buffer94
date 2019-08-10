@@ -3,6 +3,7 @@ import pyshark
 from scapy.all import *
 from SSHConnettors import *
 
+
 class NetInterface:
 
     def __init__(self, interface):

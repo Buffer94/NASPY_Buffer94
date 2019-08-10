@@ -9,7 +9,7 @@ print ("Welcome to NasPy --Buffer94_Module-- ####STP_DEBUG####")
 interface = 'enp0s3'
 
 net_interface = NetInterface(interface)
-net_interface.timeout = 20
+net_interface.timeout = 30
 
 # def parameterized_ssh_connection(self, switch_ip, switch_name, switch_pwd, switch_en_pwd, switch_interface,
 #                                      attempts=0):
@@ -43,24 +43,25 @@ except Exception as e:
 # stp_monitor.find_root_port(interface)
 #
 # stp_monitor.print_switches_status()
-while(True):
-        stp_monitor.set_connected_interface_status(interface)
-        stp_monitor.find_root_port(interface)
+# while(True):
+stp_monitor.set_connected_interface_status(interface)
+stp_monitor.find_root_port(interface)
 
-        stp_monitor.print_switches_status()
+stp_monitor.print_switches_status()
         #TODO
         #add a way to escape.
-
+while(True):
+        time.sleep(20)
         print("Finding topology changes!")
         topology_cng_pkg = pyshark.LiveCapture(interface=interface, display_filter="stp.flags.tc == 1")
-        try:
-            topology_cng_pkg.sniff(packet_count=1, timeout=300)
+        # try:
+        topology_cng_pkg.sniff(packet_count=1, timeout=300)
 
-            if len(topology_cng_pkg) > 0:
-                print("Found topology changes!")
-                stp_monitor.discover_topology_changes(interface)
-                stp_monitor.print_switches_status()
-            else:
-                print('No changes in Topology!')
-        except Exception as e:
-            print('No changes in Topology! %s' % e.with_traceback())
+        if len(topology_cng_pkg) > 0:
+            print("Found topology changes!")
+            stp_monitor.discover_topology_changes(interface)
+            stp_monitor.print_switches_status()
+        else:
+            print('No changes in Topology!')
+        # except Exception as e:
+        #     print('No changes in Topology! %s' % e)
