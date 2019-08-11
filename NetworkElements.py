@@ -40,6 +40,10 @@ class SpanningTreeInstance:
         if port not in self.ports:
             self.ports.append(port)
 
+    def remove_port(self, port):
+        if port in self.ports:
+            self.ports.remove(port)
+
     def update_stp_info(self, priority, bridge_id, root_bridge_id):
         self.priority = int(priority) + int(self.vlan_id)
         self.bridge_id = bridge_id
@@ -113,7 +117,11 @@ class Switch:
 
     def print_spanning_tree(self):
         for vlan_id in self.spanning_tree_instances:
+            self.spanning_tree_instances[vlan_id].ports.sort(key=self.take_MAC)
             self.spanning_tree_instances[vlan_id].print_stp_status()
+
+    def take_MAC(self, port):
+        return port.MAC
 
     def get_port(self, port_mac):
         for port in self.ports:
@@ -139,6 +147,9 @@ class Switch:
             self.spanning_tree_instances[vlan_id].add_port(port)
         if r_id is not None and priority is not None:
             self.spanning_tree_instances[vlan_id].update_stp_info(priority, self.bridge_id, r_id)
+
+    def remove_port_from_stp(self, vlan_id, port):
+        self.spanning_tree_instances[vlan_id].remove_port(port)
 
     def there_is_root_port(self, vlan_id):
         return self.spanning_tree_instances[vlan_id].there_is_root_port()
@@ -209,3 +220,10 @@ class Port:
         if vlan_id in self.pvlan_status:
             return True
         return False
+
+    def remove_vlan(self, vlan_id):
+        if vlan_id in self.pvlan_status:
+            del self.pvlan_status[vlan_id]
+            if len(self.pvlan_status) < 2:
+                self.trunk = False
+                print("Port %s is no longer TRUNK!" % self.name)

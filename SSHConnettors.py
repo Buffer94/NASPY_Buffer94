@@ -112,10 +112,11 @@ class CiscoSSH:
                 connected = True
                 self.switch = Switch(name, ip, pwd, en_pwd, self.connected_interface)
                 print("Connected!")
+                return True
             except (pexpect.EOF, pexpect.TIMEOUT) as e:
                 if "Password" in str(self.child.before):
                     print("Wrong Credentials..")
-                    break
+                    return False
                 if "Host key verification failed." in str(self.child.before):
                     print("Host key verification failed. Retring!")
                     os.system('ssh-keygen -f "/root/.ssh/known_hosts" -R %s' % ip)

@@ -54,11 +54,15 @@ class NetInterface:
             print("Connecting to SSH...")
             # TODO SWITCH FOR VENDOR ADDRESS
 
+            self.ssh = CiscoSSH(self.switch_interface, self.timeout)
             credentials = self.read_credentials()
+            index = 0
+            (name, pwd, en_pwd) = credentials[index]
 
-            for name, pwd, en_pwd in credentials:
-                self.ssh = CiscoSSH(self.switch_interface, self.timeout)
-                self.ssh.connect_with_attempts(self.switch_ip, name, pwd, en_pwd, 5)
+            while (index < len(credentials) and not
+                   self.ssh.connect_with_attempts(self.switch_ip, name, pwd, en_pwd, 5)):
+                index += 1
+                (name, pwd, en_pwd) = credentials[index]
 
     def enable_monitor_mode(self):
         if self.ssh is not None:

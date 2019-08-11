@@ -1,6 +1,5 @@
 from NetInterface import *
 from Monitors import STPMonitor
-from Monitors import VlanMonitor
 
 usage = "Usage: -i [interface], -m [mode]"
 
@@ -17,7 +16,11 @@ net_interface.timeout = 30
 # net_interface.wait_cdp_packet()
 # net_interface.ssh_connection()
 
-net_interface.parameterized_ssh_connection('10.0.1.102', 'switch2', 'ciki', 'ciki', 'GigabitEthernet1/3')
+# net_interface.parameterized_ssh_connection('10.0.1.102', 'switch2', 'ciki', 'ciki', 'GigabitEthernet1/3')
+
+
+net_interface.wait_cdp_packet()
+net_interface.ssh_no_credential_connection()
 
 stp_monitor = STPMonitor()
 # vlan_monitor = VlanMonitor()

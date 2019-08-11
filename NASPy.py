@@ -53,9 +53,6 @@ def update_callback(pkt):
         stp_monitor.update_switches_table(pkt)
         if pkt.highest_layer.upper() == 'ARP':
             arp_monitor.update_arp_table(pkt)
-        # TODO potrei prendere tutti i pacchetti, non solo gli STP.
-        if pkt.highest_layer.upper() == 'STP':
-            vlan_monitor.update_vlan_table(pkt)
         if pkt.highest_layer.upper() == 'BOOTP':
             dhcp_monitor.update_dhcp_servers(pkt)
 
@@ -70,11 +67,6 @@ def update_callback(pkt):
     if mode == 'arp' and pkt.highest_layer.upper() == 'ARP':
         arp_monitor.update_arp_table(pkt)
 
-    if mode == 'vlan' and pkt.highest_layer.upper() == 'STP':
-        # TODO potrei prendere tutti i pacchetti, non solo gli STP.
-        vlan_monitor.update_vlan_table(pkt)
-        print('vlan')
-
     if mode == 'stp' and pkt.highest_layer.upper() == 'STP':
         stp_monitor.update_switches_table(pkt)
 
@@ -83,7 +75,6 @@ net_interface = NetInterface(interface)
 
 # net_interface.ssh_no_credential_connection()
 
-vlan_monitor = VlanMonitor()
 stp_monitor = STPMonitor()
 arp_monitor = ArpMonitor()
 dhcp_monitor = RogueDHCPMonitor()
