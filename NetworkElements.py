@@ -120,7 +120,8 @@ class Switch:
             self.spanning_tree_instances[vlan_id].ports.sort(key=self.take_MAC)
             self.spanning_tree_instances[vlan_id].print_stp_status()
 
-    def take_MAC(self, port):
+    @staticmethod
+    def take_MAC(port):
         return port.MAC
 
     def get_port(self, port_mac):

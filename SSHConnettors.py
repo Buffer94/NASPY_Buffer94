@@ -29,18 +29,18 @@ class CiscoSSH:
             self.child.expect('%s#' % name)
             print("Connected!")
             self.switch = Switch(name, ip, pwd, en_pwd, self.connected_interface)
-        except pexpect.EOF as e:
+        except pexpect.EOF:
             if "Host key verification failed." in str(self.child.before):
                 print("Host key verification failed. Retring!")
                 os.system('ssh-keygen -f "/root/.ssh/known_hosts" -R %s' % ip)
                 self.connect_with_no_host_auth(ip, name, pwd, en_pwd)
             else:
-                print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n" % e)
-        except pexpect.TIMEOUT as e:
+                print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n")
+        except pexpect.TIMEOUT:
             if "The authenticity of host" in str(self.child.before):
                 self.connect_with_no_host_auth(ip, name, pwd, en_pwd)
             else:
-                print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n" % e)
+                print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n")
                 self.child.close()
 
     def connect_with_no_host_auth(self, ip, name, pwd, en_pwd):
@@ -60,16 +60,15 @@ class CiscoSSH:
             self.child.expect('%s#' % name)
             print("Connected!")
             self.switch = Switch(name, ip, pwd, en_pwd, self.connected_interface)
-        except (pexpect.EOF, pexpect.TIMEOUT) as e:
-            print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n" % e)
+        except (pexpect.EOF, pexpect.TIMEOUT):
+            print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n")
             self.child.close()
 
     def reconnect(self, ip, name, pwd, en_pwd, c_interface, m_timeout):
         self.connected_interface = c_interface
         self.monitor_timeout = m_timeout
         attempts = 0
-        connected = False
-        while attempts < 20 and not connected:
+        while attempts < 20:
             try:
                 self.child = pexpect.spawn("ssh %s@%s" % (name, ip))
                 self.child.timeout = 15
@@ -82,21 +81,21 @@ class CiscoSSH:
                 self.child.expect('Password:')
                 self.child.sendline(en_pwd)
                 self.child.expect('%s#' % name)
-                connected = True
                 print("Connected!")
                 self.switch = Switch(name, ip, pwd, en_pwd, self.connected_interface)
-            except (pexpect.EOF, pexpect.TIMEOUT) as e:
+                return True
+            except (pexpect.EOF, pexpect.TIMEOUT):
                 if attempts < 20:
                     print("Attempt #%s failed! i'm triyng again!" % attempts)
                 else:
-                    print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n" % e)
+                    print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n")
+                    return False
                 self.child.close()
                 attempts += 1
 
     def connect_with_attempts(self, ip, name, pwd, en_pwd, max_attempts):
         attempts = 0
-        connected = False
-        while attempts < max_attempts and not connected:
+        while attempts < max_attempts:
             try:
                 self.child = pexpect.spawn("ssh %s@%s" % (name, ip))
                 self.child.timeout = 15
@@ -109,11 +108,10 @@ class CiscoSSH:
                 self.child.expect('Password:')
                 self.child.sendline(en_pwd)
                 self.child.expect('%s#' % name)
-                connected = True
                 self.switch = Switch(name, ip, pwd, en_pwd, self.connected_interface)
                 print("Connected!")
                 return True
-            except (pexpect.EOF, pexpect.TIMEOUT) as e:
+            except (pexpect.EOF, pexpect.TIMEOUT):
                 if "Password" in str(self.child.before):
                     print("Wrong Credentials..")
                     return False
@@ -124,7 +122,8 @@ class CiscoSSH:
                 if attempts < max_attempts:
                     print("Attempt #%s failed! i'm triyng again!" % attempts)
                 else:
-                    print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n" % e)
+                    print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n")
+                    return False
                 self.child.close()
                 attempts += 1
 
@@ -192,7 +191,7 @@ class CiscoSSH:
                 'monitor session 1 destination interface %s encapsulation replicate' % self.connected_interface)
             self.child.expect('\(config\)#')
             self.child.close()
-        except (pexpect.EOF, pexpect.TIMEOUT) as e:
+        except (pexpect.EOF, pexpect.TIMEOUT):
             print("Connection Closed!")
 
     def enable_monitor_mode_on_interface_range(self, interfaces):

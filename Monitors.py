@@ -4,17 +4,18 @@ from NetworkElements import *
 from NetInterface import *
 import time
 import copy
-import traceback
+import concurrent
+
 
 class RogueDHCPMonitor:
 
     def __init__(self):
         self.dhcp_servers = list()
 
-    def update_dhcp_servers(self, packet):
-        if packet.bootp.option_dhcp == '2':
-            pkt_ip = packet.bootp.option_dhcp_server_id
-            pkt_mac = packet.eth.src
+    def update_dhcp_servers(self, pkt):
+        if pkt.bootp.option_dhcp == '2':
+            pkt_ip = pkt.bootp.option_dhcp_server_id
+            pkt_mac = pkt.eth.src
 
             if len(self.dhcp_servers) > 0:
                 found = False
@@ -40,9 +41,9 @@ class ArpMonitor:
     def __init__(self):
         self.arp_table = list()
 
-    def update_arp_table(self, packet):
-        sender_mac = packet.arp.src_hw_mac
-        sender_ip = packet.arp.src_proto_ipv4
+    def update_arp_table(self, pkt):
+        sender_mac = pkt.arp.src_hw_mac
+        sender_ip = pkt.arp.src_proto_ipv4
         found = False
 
         if len(self.arp_table) > 0:
@@ -142,7 +143,7 @@ class STPMonitor:
                 tc_capture = pyshark.LiveCapture(interface=net_interface.interface)
                 try:
                     tc_capture.apply_on_packets(self.tc_pkt_callback, timeout=net_interface.timeout)
-                except Exception:
+                except concurrent.futures.TimeoutError:
                     print('Capture finished!')
                 bridge_id_min = dict()
                 root_port = dict()
@@ -151,10 +152,6 @@ class STPMonitor:
                     bridge_id_min[vlan_id] = (60000, None)  # Priority, Mac
                     root_port[vlan_id] = None
                     blocked_port[vlan_id] = None
-
-                print("List of blocked ports:")
-                for p in self.take_blocked_port_from_baseline():
-                    print(p.name)
 
                 for port in self.take_blocked_port_from_baseline():
                     time.sleep(net_interface.timeout)
@@ -166,11 +163,11 @@ class STPMonitor:
                     net_interface.ssh.enable_monitor_mode_on_specific_port(port.name)
                     if port.trunk:
                         rcvd_pkt = dict()
-                        try:
-                            port_capture.sniff(packet_count=len(switch.get_vlans()), timeout=10)
-                        except TimeoutError as e:
-                            print("TIMEOUT: %s" % e)
-                            print('Capture on %s finished!' % port.name)
+                        # try:
+                        port_capture.sniff(packet_count=len(switch.get_vlans()), timeout=10)
+                        # except TimeoutError as e:
+                        #     print("TIMEOUT: %s" % e)
+                        #     print('Capture on %s finished!' % port.name)
                         for pkt in port_capture:
                             if pkt.stp.bridge_ext not in port.pvlan_status:
                                 switch.set_blocked_port(port.MAC, pkt.stp.bridge_ext,
@@ -189,11 +186,12 @@ class STPMonitor:
                                 bridge_id_min[vlan], root_port[vlan], blocked_port[vlan] = self.get_min_bridge_id(rcvd_pkt[vlan], bridge_id_min[vlan],
                                                                                                                   port.MAC, root_port[vlan], blocked_port[vlan])
                     else:
-                        try:
-                            port_capture.sniff(packet_count=1, timeout=10)
-                        except TimeoutError as e:
-                            print("TIMEOUT: %s" % e)
-                            print('Capture on %s finished!' % port.name)
+                        # try:
+
+                        port_capture.sniff(packet_count=1, timeout=10)
+                        # except TimeoutError as e:
+                        #     print("TIMEOUT: %s" % e)
+                        #     print('Capture on %s finished!' % port.name)
                         if len(port_capture) > 0:
                             pkt = port_capture[0]
                             if pkt.stp.bridge_ext not in port.pvlan_status:
@@ -240,11 +238,13 @@ class STPMonitor:
                                                                                                   old_prio,
                                                                                                   pkt.stp.bridge_prio))
                             switch.set_stp_priority(pkt_vlan_id, pkt.stp.bridge_prio)
+                            self.switch_baseline[pkt_vlan_id].priority = int(pkt.stp.bridge_prio) + int(pkt_vlan_id)
                         #ROOT BRIDGE CHANGE
                         old_root_bridge = self.switch_baseline[pkt_vlan_id].root_bridge_id
                         if pkt_root_id != old_root_bridge:
                             print("Root Bridge Change! the new RB of vlan %s is %s" % (pkt_vlan_id, pkt_root_id))
                             switch.set_stp_root_id(pkt_vlan_id, pkt_root_id)
+                            self.switch_baseline[pkt_vlan_id].root_bridge_id = pkt_root_id
                         #PORT_STATUS_CHANGE
                         if pkt_vlan_id in port.pvlan_status:
                             port_status = port.pvlan_status[pkt_vlan_id]
@@ -310,11 +310,11 @@ class STPMonitor:
                                                    display_filter="stp")
                 net_interface.ssh.enable_monitor_mode_on_specific_port(port.name)
                 rcvd_pkt = dict()
-                try:
-                    port_capture.sniff(packet_count=len(switch.get_vlans()))
-                except Exception as e:
-                    print("TIMEOUT: %s" % e)
-                    print('Capture on %s finished!' % port.name)
+                # try:
+                port_capture.sniff(packet_count=len(switch.get_vlans()))
+                # except Exception as e:
+                #     print("TIMEOUT: %s" % e)
+                #     print('Capture on %s finished!' % port.name)
                 for pkt in port_capture:
                     if 'type' in pkt.eth.field_names and pkt.eth.type == '0x00008100':
                         port.trunk = True

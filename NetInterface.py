@@ -52,17 +52,23 @@ class NetInterface:
     def ssh_no_credential_connection(self):
         if self.switch_ip is not None:
             print("Connecting to SSH...")
-            # TODO SWITCH FOR VENDOR ADDRESS
 
+            # TODO SWITCH FOR VENDOR ADDRESS
             self.ssh = CiscoSSH(self.switch_interface, self.timeout)
+
             credentials = self.read_credentials()
             index = 0
             (name, pwd, en_pwd) = credentials[index]
+            connected = self.ssh.connect_with_attempts(self.switch_ip, name, pwd, en_pwd, 5)
 
-            while (index < len(credentials) and not
-                   self.ssh.connect_with_attempts(self.switch_ip, name, pwd, en_pwd, 5)):
+            while index < (len(credentials)-1) and not connected:
                 index += 1
                 (name, pwd, en_pwd) = credentials[index]
+                connected = self.ssh.connect_with_attempts(self.switch_ip, name, pwd, en_pwd, 5)
+
+            return connected
+            # if not connected:
+            #     print("No Auth")
 
     def enable_monitor_mode(self):
         if self.ssh is not None:
@@ -90,7 +96,8 @@ class NetInterface:
         print('sending dns request...')
         #TODO
 
-    def read_credentials(self):
+    @staticmethod
+    def read_credentials():
         credentials = list()
 
         with open('credentials.naspy') as raw_data:
