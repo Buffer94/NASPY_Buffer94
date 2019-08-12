@@ -8,7 +8,7 @@ interface = 'enp0s3'
 
 try:
     net_interface = NetInterface(interface)
-    net_interface.timeout = 30
+    net_interface.timeout = 35
 
     net_interface.wait_cdp_packet()
     auth = net_interface.ssh_no_credential_connection()
