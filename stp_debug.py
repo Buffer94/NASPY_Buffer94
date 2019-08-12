@@ -18,8 +18,6 @@ try:
     if auth:
         stp_monitor.add_switch(net_interface.take_interfaces())
         net_interface.enable_monitor_mode()
-    else:
-        stp_monitor.add_no_auth_switch(interface)
 
     def update_callback(pkt):
         # if pkt.highest_layer.upper() == 'STP' and (pkt.stp.type == '0x80' or pkt.stp.type == '0x80000000'):
