@@ -2,11 +2,18 @@ import getpass
 import pyshark
 from scapy.all import *
 from SSHConnettors import *
+import base64
+import os
+import json
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.fernet import Fernet
 
 
 class NetInterface:
 
-    def __init__(self, interface):
+    def __init__(self, interface, password=None):
         self.interface = interface
         self.timeout = 30
         self.switch_ip = None
@@ -14,6 +21,14 @@ class NetInterface:
         self.switch_MAC = None
         self.capture = None
         self.ssh = None
+        self.password = password
+        self.kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=b'2048',
+                iterations=100000,
+                backend=default_backend()
+            )
 
     def wait_cdp_packet(self):
         print("Wait for CDP Packet ... ")
@@ -67,8 +82,6 @@ class NetInterface:
                 connected = self.ssh.connect_with_attempts(self.switch_ip, name, pwd, en_pwd, 5)
 
             return connected
-            # if not connected:
-            #     print("No Auth")
 
     def enable_monitor_mode(self):
         if self.ssh is not None:
@@ -96,15 +109,22 @@ class NetInterface:
         print('sending dns request...')
         #TODO
 
-    @staticmethod
-    def read_credentials():
+    def read_credentials(self):
         credentials = list()
 
-        with open('credentials.naspy') as raw_data:
-            for raw_item in raw_data:
-                if ':' in raw_item:
-                    item = raw_item.strip('\n')
-                    name, pwd, en_pwd = item.split(':')
-                    credentials.append((name, pwd, en_pwd))
+        if self.password is not None:
+            password = self.password.encode()
 
-        return credentials
+            key = base64.urlsafe_b64encode(self.kdf.derive(password))
+            fernet = Fernet(key)
+
+            raw_data = open('credentials.naspy')
+            data = json.load(raw_data)
+
+            for name in data:
+                raw_item = data[name]
+                pwd = fernet.decrypt(raw_item[0].encode()).decode()
+                en_pwd = fernet.decrypt(raw_item[1].encode()).decode()
+                credentials.append((name, pwd, en_pwd))
+
+            return credentials

@@ -2,14 +2,14 @@ from NetInterface import *
 from Monitors import *
 import sys
 
-usage = "Usage: -i [interface], [-m [mode]], [-h [help]]"
+usage = "Usage: -i [interface], [-m [mode]], [-p [password]], [-h [help]]"
 full_usage = "mode options: \n" \
              "arp: IDS system for ARP protocol." \
              "dhcp: IDS system for Rogue DHCP Attack" \
              "dns: IDS system for DNS Hijack Attack" \
-             "vlan: Monitoring vlan that pass through a switch" \
              "stp: Monitoring STP Status and eventually failure" \
-             "default: When no other options are chosen this script will perform all modality"
+             "default: When no other options are chosen this script will perform all modality\n" \
+             "password: is the password use for decrypting switch credentials"
 
 print ("Welcome to NASPy --Buffer94_Module--")
 
@@ -43,6 +43,12 @@ else:
     else:
         mode = 'all'
 
+    if len(sys.argv) > 4 and '-p' in sys.argv:
+        index = (sys.argv.index('-p')+1)
+        if index < len(sys.argv):
+            password = sys.argv[index]
+
+
 if mode is None:
     print('%s \n %s' % (usage, full_usage))
     sys.exit(0)
@@ -62,7 +68,7 @@ def update_callback(pkt):
 
     if mode == 'dhcp' and pkt.highest_layer.upper() == 'BOOTP':
         dhcp_monitor.update_dhcp_servers(pkt)
-        #net_interface.send_dhcp_discover()
+        net_interface.send_dhcp_discover()
 
     if mode == 'arp' and pkt.highest_layer.upper() == 'ARP':
         arp_monitor.update_arp_table(pkt)
@@ -73,7 +79,7 @@ def stp_update_callback(pkt):
 
 
 try:
-    net_interface = NetInterface(interface)
+    net_interface = NetInterface(interface, password)
     net_interface.timeout = 35
 
     stp_monitor = STPMonitor()
@@ -103,19 +109,19 @@ try:
 
     while not stop:
         if mode == 'stp' or mode == 'all':
-            time.sleep(35)
+            time.sleep(stp_monitor.waiting_timer)
             print("Finding topology changes!")
             topology_cng_pkg = pyshark.LiveCapture(interface=interface, display_filter="stp.flags.tc == 1")
             topology_cng_pkg.sniff(packet_count=1, timeout=300)
 
             if len(topology_cng_pkg) > 0:
                 print("Found topology changes!")
-                stp_monitor.discover_topology_changes(interface)
+                stp_monitor.discover_topology_changes(interface, password)
             else:
                 print('No changes in Topology!')
             stp_monitor.print_switches_status()
 
-        time.sleep(20)
+        time.sleep(stp_monitor.waiting_timer)
         if mode == 'dhcp' or mode == 'all':
             net_interface.send_dhcp_discover()
 

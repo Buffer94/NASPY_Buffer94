@@ -98,9 +98,13 @@ class STPMonitor:
     def __init__(self):
         self.switches_table = list()
         self.switch_baseline = dict()
+        self.waiting_timer = 0
 
     def update_switches_table(self, pkt):
         if pkt.highest_layer.upper() == 'STP':
+            if self.waiting_timer < (int(pkt.stp.forward) + int(pkt.stp.max_age)):
+                self.waiting_timer = (int(pkt.stp.forward) + int(pkt.stp.max_age))
+
             if 'type' in pkt.eth.field_names and pkt.eth.type == '0x00008100':
                 for switch in self.switches_table:
                     sender_mac = pkt.eth.src
@@ -145,8 +149,8 @@ class STPMonitor:
                             print("port %s is trunk" % sender_mac)
                             switch.get_port(sender_mac).trunk = True
 
-    def discover_topology_changes(self, my_host_interface):
-        net_interface = NetInterface(my_host_interface)
+    def discover_topology_changes(self, my_host_interface, password):
+        net_interface = NetInterface(my_host_interface, password)
         net_interface.timeout = 35
         net_interface.wait_cdp_packet()
         net_interface.ssh_no_credential_connection()
