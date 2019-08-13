@@ -171,6 +171,7 @@ class STPMonitor:
 
                 if switch.connected_interface is not None:
                     for port in self.take_blocked_port_from_baseline():
+                        print("Waiting...")
                         time.sleep(net_interface.timeout)
                         net_interface.parameterized_ssh_connection(switch.ip, switch.name, switch.password,
                                                                    switch.en_password, switch.connected_interface, 20)
@@ -180,11 +181,7 @@ class STPMonitor:
                         net_interface.ssh.enable_monitor_mode_on_specific_port(port.name)
                         if port.trunk:
                             rcvd_pkt = dict()
-                            # try:
                             port_capture.sniff(packet_count=len(switch.get_vlans()), timeout=10)
-                            # except TimeoutError as e:
-                            #     print("TIMEOUT: %s" % e)
-                            #     print('Capture on %s finished!' % port.name)
                             for pkt in port_capture:
                                 if pkt.stp.bridge_ext not in port.pvlan_status:
                                     switch.set_blocked_port(port.MAC, pkt.stp.bridge_ext,
@@ -203,11 +200,7 @@ class STPMonitor:
                                     bridge_id_min[vlan], root_port[vlan], blocked_port[vlan] = self.get_min_bridge_id(rcvd_pkt[vlan], bridge_id_min[vlan],
                                                                                                                       port.MAC, root_port[vlan], blocked_port[vlan])
                         else:
-                            # try:
                             port_capture.sniff(packet_count=1, timeout=10)
-                            # except TimeoutError as e:
-                            #     print("TIMEOUT: %s" % e)
-                            #     print('Capture on %s finished!' % port.name)
                             if len(port_capture) > 0:
                                 pkt = port_capture[0]
                                 if pkt.stp.bridge_ext not in port.pvlan_status:
@@ -327,7 +320,7 @@ class STPMonitor:
                     root_port[vlan_id] = None
 
                 for port in switch.get_blocked_port():
-                    print("Pre Waiting!")
+                    print("Waiting...")
                     time.sleep(timeout)
                     net_interface.parameterized_ssh_connection(switch.ip, switch.name, switch.password,
                                                                switch.en_password, switch.connected_interface, 20)
@@ -336,11 +329,7 @@ class STPMonitor:
                                                        display_filter="stp")
                     net_interface.ssh.enable_monitor_mode_on_specific_port(port.name)
                     rcvd_pkt = dict()
-                    # try:
                     port_capture.sniff(packet_count=len(switch.get_vlans()))
-                    # except Exception as e:
-                    #     print("TIMEOUT: %s" % e)
-                    #     print('Capture on %s finished!' % port.name)
                     for pkt in port_capture:
                         if 'type' in pkt.eth.field_names and pkt.eth.type == '0x00008100':
                             port.trunk = True
@@ -443,6 +432,7 @@ class STPMonitor:
         for switch in self.switches_table:
             print("\nSwitch %s:" % switch.name)
             switch.print_spanning_tree()
+            switch.print_trunk_ports()
 
     def get_switch(self, switch_id):
         for switch in self.switches_table:

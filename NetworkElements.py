@@ -65,12 +65,13 @@ class SpanningTreeInstance:
 
     def print_stp_status(self):
         print("Spanning Tree on Vlan: %s" % self.vlan_id)
-        print("Root Bridge: %s - Bridge: %s - Priority: %s" % (self.root_bridge_id, self.bridge_id, self.priority))
+        print("  Root Bridge: %s - Bridge: %s - Priority: %s" % (self.root_bridge_id, self.bridge_id, self.priority))
         if self.root_bridge:
-            print("This switch is the Root Bridge")
-        print("Recents Topology Change: %s" % self.tc_counter)
+            print("  This switch is the Root Bridge")
+        print("  Recents Topology Change: %s" % self.tc_counter)
         for port in self.ports:
-            print("Port: %s - Address: %s, Status: %s - #Rec_CNG: %s" % (port.name, port.MAC, port.pvlan_status[self.vlan_id], port.pvlan_status_change_counter[self.vlan_id]))
+            print("\tPort: %s - Address: %s, Status: %s - #Rec_CNG: %s" % (port.name, port.MAC, port.pvlan_status[self.vlan_id], port.pvlan_status_change_counter[self.vlan_id]))
+        print('')
 
 
 class Switch:
@@ -124,6 +125,17 @@ class Switch:
         for vlan_id in self.spanning_tree_instances:
             self.spanning_tree_instances[vlan_id].ports.sort(key=self.take_MAC)
             self.spanning_tree_instances[vlan_id].print_stp_status()
+
+    def print_trunk_ports(self):
+        print("Trunk Ports:")
+        there_is_trunks = False
+        for port in self.ports:
+            if port.trunk:
+                there_is_trunks = True
+                print("Port %s - vlans: %s" % (port.name, port.print_vlans()))
+
+        if not there_is_trunks:
+            print("In this switch there are not Trunk Ports!")
 
     @staticmethod
     def take_MAC(port):
@@ -237,6 +249,12 @@ class Port:
 
     def get_vlan(self):
         return self.pvlan_status.keys()
+
+    def print_vlans(self):
+        out = list()
+        for key in self.get_vlan():
+            out.append(key)
+        return str(out)[1:-1]
 
     def contain_vlan(self, vlan_id):
         if vlan_id in self.pvlan_status:

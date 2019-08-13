@@ -2,6 +2,7 @@
   <dictionary name="root">
     <words>
       <w>cisco</w>
+      <w>dhcp</w>
       <w>pvlan</w>
       <w>vlan</w>
       <w>vlans</w>
