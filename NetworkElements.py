@@ -71,7 +71,6 @@ class SpanningTreeInstance:
         print("  Recents Topology Change: %s" % self.tc_counter)
         for port in self.ports:
             print("\tPort: %s - Address: %s, Status: %s - #Rec_CNG: %s" % (port.name, port.MAC, port.pvlan_status[self.vlan_id], port.pvlan_status_change_counter[self.vlan_id]))
-        print('')
 
 
 class Switch:
@@ -136,6 +135,8 @@ class Switch:
 
         if not there_is_trunks:
             print("In this switch there are not Trunk Ports!")
+        else:
+            print('')
 
     @staticmethod
     def take_MAC(port):
