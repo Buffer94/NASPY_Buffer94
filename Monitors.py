@@ -1,5 +1,3 @@
-from builtins import print, TimeoutError
-
 from NetworkElements import *
 from NetInterface import *
 import time
@@ -25,9 +23,10 @@ class RogueDHCPMonitor:
                 if not found:
                     new_dhcp_server = DHCPServer(pkt_ip, pkt_mac)
                     self.dhcp_servers.append(new_dhcp_server)
-                    self.print_dhcp_servers()
+                    print("New DHCP Server discovered: %s" % new_dhcp_server.print_info())
             else:
                 new_dhcp_server = DHCPServer(pkt_ip, pkt_mac)
+                print("New DHCP Server discovered: %s" % new_dhcp_server.print_info())
                 self.dhcp_servers.append(new_dhcp_server)
 
     def print_dhcp_servers(self):

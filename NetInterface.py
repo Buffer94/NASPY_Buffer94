@@ -103,10 +103,11 @@ class NetInterface:
         DHCP_discover = Ether(src=local_mac, dst=broad_mac) / IP(src=source_ip, dst=dest_ip) / UDP(
             dport=67, sport=68) / BOOTP(chaddr=local_mac_raw, xid=RandInt()) / DHCP(
             options=[('message-type', 'discover'), 'end'])
-        sendp(DHCP_discover, iface=self.interface)
+        sendp(DHCP_discover, iface=self.interface, count=15, inter=2)
 
     def send_dns_request(self):
-        print('sending dns request...')
+        for i in range(15):
+            print("sending %s 's dns request..." % i)
         #TODO
 
     def read_credentials(self):

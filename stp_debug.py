@@ -19,6 +19,7 @@ if auth:
     stp_monitor.add_switch(net_interface.take_interfaces())
     net_interface.enable_monitor_mode()
 
+
 def update_callback(pkt):
     # if pkt.highest_layer.upper() == 'STP' and (pkt.stp.type == '0x80' or pkt.stp.type == '0x80000000'):
     #     stp_monitor.set_root_port(packet.stp.bridge_hw, packet.eth.src)

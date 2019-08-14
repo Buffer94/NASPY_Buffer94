@@ -1,6 +1,7 @@
 from NetInterface import *
 from Monitors import *
 import sys
+import asyncio
 
 usage = "Usage: -i [interface], [-m [mode]], [-p [password]], [-h [help]]"
 full_usage = "mode options: \n" \
@@ -53,6 +54,13 @@ if mode is None:
     print('%s \n %s' % (usage, full_usage))
     sys.exit(0)
 
+net_interface = NetInterface(interface, password)
+net_interface.timeout = 35
+
+stp_monitor = STPMonitor()
+arp_monitor = ArpMonitor()
+dhcp_monitor = RogueDHCPMonitor()
+
 
 def update_callback(pkt):
     if mode == 'all':
@@ -60,7 +68,6 @@ def update_callback(pkt):
             arp_monitor.update_arp_table(pkt)
         if pkt.highest_layer.upper() == 'BOOTP':
             dhcp_monitor.update_dhcp_servers(pkt)
-        # stp_monitor.update_switches_table(pkt)
 
     if mode == 'dns':
         # TODO
@@ -68,7 +75,6 @@ def update_callback(pkt):
 
     if mode == 'dhcp' and pkt.highest_layer.upper() == 'BOOTP':
         dhcp_monitor.update_dhcp_servers(pkt)
-        net_interface.send_dhcp_discover()
 
     if mode == 'arp' and pkt.highest_layer.upper() == 'ARP':
         arp_monitor.update_arp_table(pkt)
@@ -79,13 +85,6 @@ def stp_update_callback(pkt):
 
 
 try:
-    net_interface = NetInterface(interface, password)
-    net_interface.timeout = 35
-
-    stp_monitor = STPMonitor()
-    arp_monitor = ArpMonitor()
-    dhcp_monitor = RogueDHCPMonitor()
-
     if mode == 'stp' or mode == 'all':
         net_interface.wait_cdp_packet()
         auth = net_interface.ssh_no_credential_connection()
@@ -121,12 +120,13 @@ try:
                 print('No changes in Topology!')
             stp_monitor.print_switches_status()
 
-        time.sleep(stp_monitor.waiting_timer)
+        time.sleep(30)
+
         if mode == 'dhcp' or mode == 'all':
-            net_interface.send_dhcp_discover()
+            threading.Thread(target=net_interface.send_dhcp_discover).start()
 
         if mode == 'dns' or mode == 'all':
-            net_interface.send_dns_request()
+            threading.Thread(target=net_interface.send_dns_request).start()
 
         print('start sniffing...')
         net_interface.capture = pyshark.LiveCapture(interface=net_interface.interface)
@@ -134,6 +134,9 @@ try:
             net_interface.capture.apply_on_packets(update_callback, timeout=net_interface.timeout)
         except concurrent.futures.TimeoutError:
             print('Capture finished!')
+
+        dhcp_monitor.print_dhcp_servers()
+        print('End sniffing...')
 
 except (KeyboardInterrupt, RuntimeError, TypeError):
     print("Bye!!")
