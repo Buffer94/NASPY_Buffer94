@@ -94,16 +94,15 @@ class NetInterface:
     def send_dhcp_discover(self):
         print('sending dhcp discover...')
         local_mac = get_if_hwaddr(self.interface)
-        # local_mac_raw = get_if_raw_hwaddr(self.interface)
-        local_mac_raw = get_if_hwaddr(self.interface)
+        fam, local_mac_raw = get_if_raw_hwaddr(self.interface)
         broad_mac = 'ff:ff:ff:ff:ff:ff'
         source_ip = '0.0.0.0'
         dest_ip = '255.255.255.255'
 
         DHCP_discover = Ether(src=local_mac, dst=broad_mac) / IP(src=source_ip, dst=dest_ip) / UDP(
-            dport=67, sport=68) / BOOTP(chaddr=local_mac_raw, xid=RandInt()) / DHCP(
+            dport=67, sport=68) / BOOTP(chaddr=local_mac_raw) / DHCP(
             options=[('message-type', 'discover'), 'end'])
-        sendp(DHCP_discover, iface=self.interface, count=15, inter=2)
+        sendp(DHCP_discover, iface=self.interface, count=15, inter=0.5)
 
     def send_dns_request(self):
         for i in range(15):

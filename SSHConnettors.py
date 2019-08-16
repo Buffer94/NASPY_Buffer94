@@ -60,9 +60,11 @@ class CiscoSSH:
             self.child.expect('%s#' % name)
             print("Connected!")
             self.switch = Switch(name, ip, pwd, en_pwd, self.connected_interface)
+            return True
         except (pexpect.EOF, pexpect.TIMEOUT):
             print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n")
             self.child.close()
+            return False
 
     def reconnect(self, ip, name, pwd, en_pwd, c_interface, m_timeout):
         self.connected_interface = c_interface
@@ -119,6 +121,8 @@ class CiscoSSH:
                     print("Host key verification failed. Retring!")
                     os.system('ssh-keygen -f "/root/.ssh/known_hosts" -R %s' % ip)
                     self.connect_with_no_host_auth(ip, name, pwd, en_pwd)
+                if "The authenticity of host" in str(self.child.before):
+                    return self.connect_with_no_host_auth(ip, name, pwd, en_pwd)
                 if attempts < max_attempts:
                     print("Attempt #%s failed! i'm triyng again!" % attempts)
                 else:

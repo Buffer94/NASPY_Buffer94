@@ -65,13 +65,26 @@ dhcp_monitor = RogueDHCPMonitor()
 def update_callback(pkt):
     if mode == 'all':
         if pkt.highest_layer.upper() == 'ARP':
-            arp_monitor.update_arp_table(pkt)
+            sender_port = None
+            target_port = None
+            for switch in stp_monitor.switches_table:
+                if switch.contains(pkt.arp.src_hw_mac):
+                    sender_port = switch.get_port(pkt.arp.src_hw_mac)
+
+                if switch.contains(pkt.arp.dst_hw_mac):
+                    target_port = switch.get_port(pkt.arp.dst_hw_mac)
+
+            arp_monitor.update_arp_table(pkt, sender_port, target_port)
         if pkt.highest_layer.upper() == 'BOOTP':
             dhcp_monitor.update_dhcp_servers(pkt)
+        stp_monitor.update_switches_table(pkt)
 
     if mode == 'dns':
         # TODO
         print('dns')
+
+    if mode == 'stp':
+        stp_monitor.update_switches_table(pkt)
 
     if mode == 'dhcp' and pkt.highest_layer.upper() == 'BOOTP':
         dhcp_monitor.update_dhcp_servers(pkt)
@@ -80,53 +93,63 @@ def update_callback(pkt):
         arp_monitor.update_arp_table(pkt)
 
 
-def stp_update_callback(pkt):
-    stp_monitor.update_switches_table(pkt)
-
-
 try:
-    if mode == 'stp' or mode == 'all':
-        net_interface.wait_cdp_packet()
-        auth = net_interface.ssh_no_credential_connection()
-        if auth:
-            stp_monitor.add_switch(net_interface.take_interfaces())
-            net_interface.enable_monitor_mode()
+    # if mode == 'stp' or mode == 'all':
+    #     net_interface.wait_cdp_packet()
+    #     auth = net_interface.ssh_no_credential_connection()
+    #     if auth:
+    #         stp_monitor.add_switch(net_interface.take_interfaces())
+    #         net_interface.enable_monitor_mode()
+    #
+    #     print('start sniffing...')
+    #     net_interface.capture = pyshark.LiveCapture(interface=net_interface.interface)
+    #     try:
+    #         net_interface.capture.apply_on_packets(update_callback, timeout=net_interface.timeout)
+    #     except concurrent.futures.TimeoutError:
+    #         print('Capture finished!')
+    #
+    #     stp_monitor.set_connected_interface_status(interface)
+    #     stp_monitor.find_root_port(interface)
+    #
+    #     stp_monitor.print_switches_status()
 
-        print('start sniffing...')
-        net_interface.capture = pyshark.LiveCapture(interface=net_interface.interface)
-        try:
-            net_interface.capture.apply_on_packets(stp_update_callback, timeout=net_interface.timeout)
-        except concurrent.futures.TimeoutError:
-            print('Capture finished!')
-
-        stp_monitor.set_connected_interface_status(interface)
-        stp_monitor.find_root_port(interface)
-
-        stp_monitor.print_switches_status()
-
-    stop = False
-
-    while not stop:
-        if mode == 'stp' or mode == 'all':
-            time.sleep(stp_monitor.waiting_timer)
-            print("Finding topology changes!")
-            topology_cng_pkg = pyshark.LiveCapture(interface=interface, display_filter="stp.flags.tc == 1")
-            topology_cng_pkg.sniff(packet_count=1, timeout=300)
-
-            if len(topology_cng_pkg) > 0:
-                print("Found topology changes!")
-                stp_monitor.discover_topology_changes(interface, password)
-            else:
-                print('No changes in Topology!')
-            stp_monitor.print_switches_status()
-
-        time.sleep(30)
+    while True:
+        # time.sleep(30)
 
         if mode == 'dhcp' or mode == 'all':
             threading.Thread(target=net_interface.send_dhcp_discover).start()
 
         if mode == 'dns' or mode == 'all':
             threading.Thread(target=net_interface.send_dns_request).start()
+
+        # if mode == 'ARP' or mode == 'all':
+        #     def async_arp_watch():
+        #         print("Async Arp Watch!")
+        #         for dhcp_server in dhcp_monitor.dhcp_servers:
+        #             netmask = 32
+        #             network_bit = dhcp_server.ip_address.split('.')
+        #             subnet_bit = dhcp_server.subnet.split('.')
+        #
+        #             for index in range(4):
+        #                 if int(subnet_bit[index]) != 255:
+        #                     rem = format(int(subnet_bit[index]),'08b').count('0')
+        #                     netmask -= rem*(4-index)
+        #                     if int(network_bit[index]) > int(subnet_bit[index]):
+        #                         network_bit[index] = int(subnet_bit[index])
+        #                     else:
+        #                         network_bit[index] = 0
+        #                     break
+        #
+        #             ip = ''
+        #             for index in range(4):
+        #                 ip += str(network_bit[index])
+        #                 if index < 3:
+        #                     pass
+        #                 ip += '.'
+        #
+        #             arping('%s/%s' % (ip, netmask))
+        #
+        #     threading.Thread(target=async_arp_watch).start()
 
         print('start sniffing...')
         net_interface.capture = pyshark.LiveCapture(interface=net_interface.interface)
@@ -136,7 +159,20 @@ try:
             print('Capture finished!')
 
         dhcp_monitor.print_dhcp_servers()
-        print('End sniffing...')
+        arp_monitor.print_ip_arp_table()
 
-except (KeyboardInterrupt, RuntimeError, TypeError):
-    print("Bye!!")
+        # if mode == 'stp' or mode == 'all':
+        #     time.sleep(stp_monitor.waiting_timer)
+        #     print("Finding topology changes...")
+        #     topology_cng_pkg = pyshark.LiveCapture(interface=interface, display_filter="stp.flags.tc == 1")
+        #     topology_cng_pkg.sniff(packet_count=1, timeout=300)
+        #
+        #     if len(topology_cng_pkg) > 0:
+        #         print("Found topology changes!")
+        #         stp_monitor.discover_topology_changes(interface, password)
+        #     else:
+        #         print('No changes in Topology!')
+        #     stp_monitor.print_switches_status()
+
+except (KeyboardInterrupt, RuntimeError, TypeError) as e:
+    print("Bye!! %s" % e)

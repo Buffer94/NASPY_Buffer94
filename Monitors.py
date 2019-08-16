@@ -15,81 +15,125 @@ class RogueDHCPMonitor:
             pkt_ip = pkt.bootp.option_dhcp_server_id
             pkt_mac = pkt.eth.src
 
+            if 'option_subnet_mask' in pkt.bootp.field_names:
+                subnet = pkt.bootp.option_subnet_mask
+            else:
+                subnet = '0.0.0.0'
+
             if len(self.dhcp_servers) > 0:
                 found = False
                 for dhcp_server in self.dhcp_servers:
                     if dhcp_server.equals(pkt_mac):
                         found = True
                 if not found:
-                    new_dhcp_server = DHCPServer(pkt_ip, pkt_mac)
+                    new_dhcp_server = DHCPServer(pkt_ip, pkt_mac, subnet)
                     self.dhcp_servers.append(new_dhcp_server)
-                    print("New DHCP Server discovered: %s" % new_dhcp_server.print_info())
+                    print("New DHCP Server discovered")
+                    new_dhcp_server.print_info()
             else:
-                new_dhcp_server = DHCPServer(pkt_ip, pkt_mac)
-                print("New DHCP Server discovered: %s" % new_dhcp_server.print_info())
+                new_dhcp_server = DHCPServer(pkt_ip, pkt_mac, subnet)
+                print("New DHCP Server discovered")
+                new_dhcp_server.print_info()
                 self.dhcp_servers.append(new_dhcp_server)
 
     def print_dhcp_servers(self):
-        print("I've found this DHCP Server on the network:")
-        for dhcp_server in self.dhcp_servers:
-            dhcp_server.print_info()
+        if len(self.dhcp_servers) > 0:
+            print("I've found this DHCP Servers on the network:")
+            for dhcp_server in self.dhcp_servers:
+                dhcp_server.print_info()
+        else:
+            print("No DHCP Servers found!")
 
 
 class ArpMonitor:
 
     def __init__(self):
-        self.arp_table = list()
+        self.ip_arp_table = dict()
+        self.mac_arp_table = dict()
 
-    def update_arp_table(self, pkt):
+    def update_arp_table(self, pkt, sender_port=None, target_port=None):
         sender_mac = pkt.arp.src_hw_mac
         sender_ip = pkt.arp.src_proto_ipv4
-        found = False
+        target_mac = pkt.arp.dst_hw_mac
+        target_ip = pkt.arp.dst_proto_ipv4
 
-        if len(self.arp_table) > 0:
-            for tuple in self.arp_table:
-                if tuple[0] == sender_mac and tuple[1] == sender_ip:
-                    found = True
+        sender_vlan_id = 1
+        target_vlan_id = 1
 
-            if not found:
-                self.arp_table.append((sender_mac, sender_ip))
-                self.find_mac_duplicate()
-                self.find_ip_duplicate()
+        if 'type' in pkt.eth.field_names and pkt.eth.type == '0x00008100':
+            sender_vlan_id = pkt.vlan.id
+            target_vlan_id = pkt.vlan.id
         else:
-            self.arp_table.append((sender_mac, sender_ip))
+            if sender_port is not None:
+                if not sender_port.trunk:
+                    sender_vlan_id = sender_port.pvlan_status[0]
+                    print("Sender port %s - vlan: %s" % (sender_port.MAC, sender_vlan_id))
 
-    def find_mac_duplicate(self):
-        mac_arp_table = dict()
+            if target_port is not None:
+                if not target_port.trunk:
+                    target_vlan_id = target_port.pvlan_status[0]
+                    print("Sender port %s - vlan: %s" % (target_port.MAC, target_vlan_id))
 
-        for pair in self.arp_table:
-            mac = pair[0]
-            ip = pair[1]
-            if mac in mac_arp_table:
-                if not (ip in mac_arp_table[mac]):
-                    mac_arp_table[mac].append(ip)
-            else:
-                mac_arp_table[mac] = list()
-                mac_arp_table[mac].append(ip)
+        if target_mac != '00:00:00:00:00:00' and target_ip != '0.0.0.0':
+            self.add_entry(target_ip, target_mac, target_vlan_id)
 
-        for mac in mac_arp_table:
-            if len(mac_arp_table[mac]) > 1:
-                print("Conflict Found, duplicate mac address: %s with this IPs: %s" % (mac, mac_arp_table[mac]))
+        self.add_entry(sender_ip, sender_mac, sender_vlan_id)
 
-    def find_ip_duplicate(self):
-        ip_arp_table = dict()
+    def add_entry(self, ip, mac, vlan_id):
+        if ip in self.ip_arp_table:
+            if not ((mac, vlan_id) in self.ip_arp_table[ip]):
+                self.ip_arp_table[ip].append((mac, vlan_id))
+                if len(self.ip_arp_table[ip]) > 1:
+                    self.check_ip_duplicate()
+        else:
+            self.ip_arp_table[ip] = list()
+            self.ip_arp_table[ip].append((mac, vlan_id))
 
-        for pair in self.arp_table:
-            mac = pair[0]
-            ip = pair[1]
-            if ip in ip_arp_table:
-                if not (mac in ip_arp_table[ip]):
-                    ip_arp_table[ip].append(mac)
-            else:
-                ip_arp_table[ip] = list()
-                ip_arp_table[ip].append(mac)
+        if mac in self.mac_arp_table:
+            if not ((ip, vlan_id) in self.mac_arp_table[mac]):
+                self.mac_arp_table[mac].append((ip, vlan_id))
+                if len(self.mac_arp_table[mac]) > 1:
+                    self.check_mac_duplicate()
+        else:
+            self.mac_arp_table[mac] = list()
+            self.mac_arp_table[mac].append((ip, vlan_id))
 
-        for ip in ip_arp_table:
-            if len(ip_arp_table[ip]) > 1:
-                print("Conflict Found, duplicate IP address: %s with this mac: %s" % (ip, ip_arp_table[ip]))
+    def check_ip_duplicate(self):
+        macs = list()
+        for ip in self.ip_arp_table:
+            for pair in self.ip_arp_table[ip]:
+                for pair2 in self.ip_arp_table[ip]:
+                    if pair[0] != pair2[0] and pair[1] == pair2[1]:
+                        if pair not in macs:
+                            macs.append(pair)
+                        if pair2 not in macs:
+                            macs.append(pair2)
+
+        if len(macs) > 1:
+            print("Conflict Found, duplicate ip address: %s with this MACs: %s" % (ip, str(macs)[1:-1]))
+
+    def check_mac_duplicate(self):
+        ips = list()
+        for mac in self.mac_arp_table:
+            for pair in self.mac_arp_table[mac]:
+                for pair2 in self.mac_arp_table[mac]:
+                    if pair[0] != pair2[0] and pair[1] == pair2[1]:
+                        if pair not in ips:
+                            ips.append(pair)
+                        if pair2 not in ips:
+                            ips.append(pair2)
+
+        if len(ips) > 1:
+            print("Conflict Found, duplicate mac address: %s with this IPs: %s" % (mac, str(ips)[1:-1]))
+
+    def print_ip_arp_table(self):
+        print("Arp Table:")
+        for ip in self.ip_arp_table:
+            print("IP %s - MAC: %s" % (ip, str(self.ip_arp_table[ip])[1:-1]))
+
+    def print_mac_arp_table(self):
+        for mac in self.mac_arp_table:
+            print("MAC: %s - IP: %s" % (mac, str(self.mac_arp_table[mac])[1:-1]))
 
 
 class STPMonitor:
@@ -133,7 +177,7 @@ class STPMonitor:
                     vlan_id = pkt.stp.bridge_ext
                     bridge_id = pkt.stp.bridge_hw
                     priority = pkt.stp.bridge_prio
-                    port = Port('', pkt.eth.src)
+                    port = Port(pkt.eth.src, pkt.eth.src)
                     switch.add_ports(port)
                     switch.set_designated_port(port.MAC, vlan_id, priority=priority, b_id=bridge_id)
                     switch.set_stp_root_id(vlan_id, pkt.stp.root_hw)

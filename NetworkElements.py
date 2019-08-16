@@ -3,12 +3,13 @@ from builtins import print
 
 class DHCPServer:
 
-    def __init__(self, ip_address, mac_address):
+    def __init__(self, ip_address, mac_address, subnet):
         self.ip_address = ip_address
         self.mac_address = mac_address
+        self.subnet = subnet
 
     def print_info(self):
-        print('Ip Address: %s MAC address: %s' % (self.ip_address, self.mac_address))
+        print('Ip Address: %s MAC address: %s Subnet %s' % (self.ip_address, self.mac_address, self.subnet))
 
     def set_ip_address(self, ip_address):
         self.ip_address = ip_address
@@ -17,6 +18,44 @@ class DHCPServer:
         if self.mac_address == n_mac_address:
             return True
         return False
+
+
+class ARPTable:
+
+    def __init__(self):
+        self.ip_arp_table = dict()
+        self.mac_arp_table = dict()
+
+    def add_couple(self, ip, mac):
+        if ip in self.ip_arp_table:
+            if not (mac in self.ip_arp_table[ip]):
+                self.ip_arp_table[ip].append(mac)
+                if len(self.ip_arp_table[ip]) > 1:
+                    print("Conflict Found, duplicate IP address: %s with this mac: %s" % (ip, self.ip_arp_table[ip]))
+        else:
+            self.ip_arp_table[ip] = list()
+            self.ip_arp_table[ip].append(mac)
+            if len(self.ip_arp_table[ip]) > 1:
+                print("Conflict Found, duplicate IP address: %s with this mac: %s" % (ip, self.ip_arp_table[ip]))
+
+        if mac in self.mac_arp_table:
+            if not (ip in self.mac_arp_table[mac]):
+                self.mac_arp_table[mac].append(ip)
+                if len(self.mac_arp_table[mac]) > 1:
+                    print("Conflict Found, duplicate mac address: %s with this IPs: %s" % (mac, self.mac_arp_table[mac]))
+        else:
+            self.mac_arp_table[mac] = list()
+            self.mac_arp_table[mac].append(ip)
+            if len(self.mac_arp_table[mac]) > 1:
+                print("Conflict Found, duplicate mac address: %s with this IPs: %s" % (mac, self.mac_arp_table[mac]))
+
+    def print_ip_arp_table(self):
+        for ip in self.ip_arp_table:
+            print("IP %s - MAC: %s" % (ip, str(self.ip_arp_table[ip])[1:-1]))
+
+    def print_mac_arp_table(self):
+        for mac in self.mac_arp_table:
+            print("MAC %s - IP: %s" % (mac, str(self.mac_arp_table[mac])[1:-1]))
 
 
 class SpanningTreeInstance:
