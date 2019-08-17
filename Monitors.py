@@ -74,7 +74,7 @@ class ArpMonitor:
                     target_vlan_id = target_port.pvlan_status[0]
                     print("Sender port %s - vlan: %s" % (target_port.MAC, target_vlan_id))
 
-        if target_mac != '00:00:00:00:00:00' and target_ip != '0.0.0.0':
+        if target_mac != '00:00:00:00:00:00' and target_mac != 'ff:ff:ff:ff:ff:ff' and target_ip != '0.0.0.0':
             self.add_entry(target_ip, target_mac, target_vlan_id)
 
         self.add_entry(sender_ip, sender_mac, sender_vlan_id)
@@ -99,32 +99,44 @@ class ArpMonitor:
             self.mac_arp_table[mac].append((ip, vlan_id))
 
     def check_ip_duplicate(self):
-        macs = list()
+        macs = dict()
         for ip in self.ip_arp_table:
             for pair in self.ip_arp_table[ip]:
                 for pair2 in self.ip_arp_table[ip]:
                     if pair[0] != pair2[0] and pair[1] == pair2[1]:
-                        if pair not in macs:
-                            macs.append(pair)
-                        if pair2 not in macs:
-                            macs.append(pair2)
+                        if ip in macs:
+                            if pair not in macs[ip]:
+                                macs[ip].append(pair)
+                            if pair2 not in macs[ip]:
+                                macs[ip].append(pair2)
+                        else:
+                            macs[ip] = list()
+                            macs[ip].append(pair)
+                            macs[ip].append(pair2)
 
-        if len(macs) > 1:
-            print("Conflict Found, duplicate ip address: %s with this MACs: %s" % (ip, str(macs)[1:-1]))
+        for ip in macs:
+            if len(macs[ip]) > 1:
+                print("Conflict Found, duplicate IP address: %s with this MACs: %s" % (ip, str(macs[ip])[1:-1]))
 
     def check_mac_duplicate(self):
-        ips = list()
+        ips = dict()
         for mac in self.mac_arp_table:
             for pair in self.mac_arp_table[mac]:
                 for pair2 in self.mac_arp_table[mac]:
                     if pair[0] != pair2[0] and pair[1] == pair2[1]:
-                        if pair not in ips:
-                            ips.append(pair)
-                        if pair2 not in ips:
-                            ips.append(pair2)
+                        if mac in ips:
+                            if pair not in ips:
+                                ips[mac].append(pair)
+                            if pair2 not in ips:
+                                ips[mac].append(pair2)
+                        else:
+                            ips[mac] = list()
+                            ips[mac].append(pair)
+                            ips[mac].append(pair2)
 
-        if len(ips) > 1:
-            print("Conflict Found, duplicate mac address: %s with this IPs: %s" % (mac, str(ips)[1:-1]))
+        for mac in ips:
+            if len(ips[mac]) > 1:
+                print("Conflict Found, duplicate MAC address: %s with this IPs: %s" % (mac, str(ips[mac])[1:-1]))
 
     def print_ip_arp_table(self):
         print("Arp Table:")

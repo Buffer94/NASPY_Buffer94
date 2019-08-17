@@ -92,7 +92,7 @@ class NetInterface:
             return self.ssh.take_interfaces()
 
     def send_dhcp_discover(self):
-        print('sending dhcp discover...')
+        print('sending DHCP discover...')
         local_mac = get_if_hwaddr(self.interface)
         fam, local_mac_raw = get_if_raw_hwaddr(self.interface)
         broad_mac = 'ff:ff:ff:ff:ff:ff'
@@ -102,11 +102,20 @@ class NetInterface:
         DHCP_discover = Ether(src=local_mac, dst=broad_mac) / IP(src=source_ip, dst=dest_ip) / UDP(
             dport=67, sport=68) / BOOTP(chaddr=local_mac_raw) / DHCP(
             options=[('message-type', 'discover'), 'end'])
-        sendp(DHCP_discover, iface=self.interface, count=15, inter=0.5)
+        sendp(DHCP_discover, iface=self.interface, count=15, inter=0.5, verbose=False)
+
+    def send_arp_request(self, ip, netmask):
+        print('sending ARP Request...')
+        broad_mac = 'ff:ff:ff:ff:ff:ff'
+        subnet_ip = '%s/%s' % (ip, netmask)
+        arp_request = Ether(dst=broad_mac)/ARP(pdst=subnet_ip)
+
+        sendp(arp_request, verbose=False, iface=self.interface, inter=0.5)
 
     def send_dns_request(self):
-        for i in range(15):
-            print("sending %s 's dns request..." % i)
+        print('sending DNS Request...')
+        # for i in range(15):
+        #     print("sending %s 's dns request..." % i)
         #TODO
 
     def read_credentials(self):

@@ -122,34 +122,33 @@ try:
         if mode == 'dns' or mode == 'all':
             threading.Thread(target=net_interface.send_dns_request).start()
 
-        # if mode == 'ARP' or mode == 'all':
-        #     def async_arp_watch():
-        #         print("Async Arp Watch!")
-        #         for dhcp_server in dhcp_monitor.dhcp_servers:
-        #             netmask = 32
-        #             network_bit = dhcp_server.ip_address.split('.')
-        #             subnet_bit = dhcp_server.subnet.split('.')
-        #
-        #             for index in range(4):
-        #                 if int(subnet_bit[index]) != 255:
-        #                     rem = format(int(subnet_bit[index]),'08b').count('0')
-        #                     netmask -= rem*(4-index)
-        #                     if int(network_bit[index]) > int(subnet_bit[index]):
-        #                         network_bit[index] = int(subnet_bit[index])
-        #                     else:
-        #                         network_bit[index] = 0
-        #                     break
-        #
-        #             ip = ''
-        #             for index in range(4):
-        #                 ip += str(network_bit[index])
-        #                 if index < 3:
-        #                     pass
-        #                 ip += '.'
-        #
-        #             arping('%s/%s' % (ip, netmask))
-        #
-        #     threading.Thread(target=async_arp_watch).start()
+        if mode == 'ARP' or mode == 'all':
+            def async_arp_watch():
+                print("Async Arp Watch!")
+                for dhcp_server in dhcp_monitor.dhcp_servers:
+                    netmask = 32
+                    network_bit = dhcp_server.ip_address.split('.')
+                    subnet_bit = dhcp_server.subnet.split('.')
+
+                    for index in range(4):
+                        if int(subnet_bit[index]) != 255:
+                            rem = format(int(subnet_bit[index]),'08b').count('0')
+                            netmask -= rem*(4-index)
+                            if int(network_bit[index]) > int(subnet_bit[index]):
+                                network_bit[index] = int(subnet_bit[index])
+                            else:
+                                network_bit[index] = 0
+                            break
+
+                    ip = ''
+                    for index in range(4):
+                        ip += str(network_bit[index])
+                        if index < 3:
+                            ip += '.'
+
+                    net_interface.send_arp_request(ip, netmask)
+
+            threading.Thread(target=async_arp_watch).start()
 
         print('start sniffing...')
         net_interface.capture = pyshark.LiveCapture(interface=net_interface.interface)
