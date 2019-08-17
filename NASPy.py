@@ -29,20 +29,20 @@ else:
             print (usage)
         sys.exit(0)
 
-    mode = None
-    if len(sys.argv) > 4 and sys.argv[3] == '-m':
-        if sys.argv[4] == 'arp':
-            mode = 'arp'
-        if sys.argv[4] == 'dhcp':
-            mode = 'dhcp'
-        if sys.argv[4] == 'vlan':
-            mode = 'vlan'
-        if sys.argv[4] == 'stp':
-            mode = 'stp'
-        if sys.argv[4] == 'dns':
-            mode = 'dns'
-    else:
-        mode = 'all'
+    mode = 'all'
+    if len(sys.argv) > 4 and '-m' in sys.argv:
+        index = (sys.argv.index('-m') + 1)
+        if index < len(sys.argv):
+            if sys.argv[index] == 'arp':
+                mode = 'arp'
+            if sys.argv[index] == 'dhcp':
+                mode = 'dhcp'
+            if sys.argv[index] == 'vlan':
+                mode = 'vlan'
+            if sys.argv[index] == 'stp':
+                mode = 'stp'
+            if sys.argv[index] == 'dns':
+                mode = 'dns'
 
     if len(sys.argv) > 4 and '-p' in sys.argv:
         index = (sys.argv.index('-p')+1)
@@ -60,6 +60,7 @@ net_interface.timeout = 35
 stp_monitor = STPMonitor()
 arp_monitor = ArpMonitor()
 dhcp_monitor = RogueDHCPMonitor()
+dns_monitor = RogueDNSMonitor()
 
 
 def update_callback(pkt):
@@ -77,11 +78,12 @@ def update_callback(pkt):
             arp_monitor.update_arp_table(pkt, sender_port, target_port)
         if pkt.highest_layer.upper() == 'BOOTP':
             dhcp_monitor.update_dhcp_servers(pkt)
+        if pkt.highest_layer.upper() == 'DNS':
+            dns_monitor.update_dns_servers(pkt)
         stp_monitor.update_switches_table(pkt)
 
-    if mode == 'dns':
-        # TODO
-        print('dns')
+    if mode == 'dns' and pkt.highest_layer.upper() == 'DNS':
+        dns_monitor.update_dns_servers(pkt)
 
     if mode == 'stp':
         stp_monitor.update_switches_table(pkt)
@@ -94,27 +96,27 @@ def update_callback(pkt):
 
 
 try:
-    if mode == 'stp' or mode == 'all':
-        net_interface.wait_cdp_packet()
-        auth = net_interface.ssh_no_credential_connection()
-        if auth:
-            stp_monitor.add_switch(net_interface.take_interfaces())
-            net_interface.enable_monitor_mode()
-
-        print('start sniffing...')
-        net_interface.capture = pyshark.LiveCapture(interface=net_interface.interface)
-        try:
-            net_interface.capture.apply_on_packets(update_callback, timeout=net_interface.timeout)
-        except concurrent.futures.TimeoutError:
-            print('Capture finished!')
-
-        stp_monitor.set_connected_interface_status(interface)
-        stp_monitor.find_root_port(interface)
-
-        stp_monitor.print_switches_status()
+    # if mode == 'stp' or mode == 'all':
+    #     net_interface.wait_cdp_packet()
+    #     auth = net_interface.ssh_no_credential_connection()
+    #     if auth:
+    #         stp_monitor.add_switch(net_interface.take_interfaces())
+    #         net_interface.enable_monitor_mode()
+    #
+    #     print('start sniffing...')
+    #     net_interface.capture = pyshark.LiveCapture(interface=net_interface.interface)
+    #     try:
+    #         net_interface.capture.apply_on_packets(update_callback, timeout=net_interface.timeout)
+    #     except concurrent.futures.TimeoutError:
+    #         print('Capture finished!')
+    #
+    #     stp_monitor.set_connected_interface_status(interface)
+    #     stp_monitor.find_root_port(interface)
+    #
+    #     stp_monitor.print_switches_status()
 
     while True:
-        time.sleep(30)
+        # time.sleep(30)
 
         if mode == 'dhcp' or mode == 'all':
             threading.Thread(target=net_interface.send_dhcp_discover).start()
@@ -160,18 +162,18 @@ try:
         dhcp_monitor.print_dhcp_servers()
         arp_monitor.print_ip_arp_table()
 
-        if mode == 'stp' or mode == 'all':
-            time.sleep(stp_monitor.waiting_timer)
-            print("Finding topology changes...")
-            topology_cng_pkg = pyshark.LiveCapture(interface=interface, display_filter="stp.flags.tc == 1")
-            topology_cng_pkg.sniff(packet_count=1, timeout=300)
-
-            if len(topology_cng_pkg) > 0:
-                print("Found topology changes!")
-                stp_monitor.discover_topology_changes(interface, password)
-            else:
-                print('No changes in Topology!')
-            stp_monitor.print_switches_status()
+        # if mode == 'stp' or mode == 'all':
+        #     time.sleep(stp_monitor.waiting_timer)
+        #     print("Finding topology changes...")
+        #     topology_cng_pkg = pyshark.LiveCapture(interface=interface, display_filter="stp.flags.tc == 1")
+        #     topology_cng_pkg.sniff(packet_count=1, timeout=300)
+        #
+        #     if len(topology_cng_pkg) > 0:
+        #         print("Found topology changes!")
+        #         stp_monitor.discover_topology_changes(interface, password)
+        #     else:
+        #         print('No changes in Topology!')
+        #     stp_monitor.print_switches_status()
 
 except (KeyboardInterrupt, RuntimeError, TypeError) as e:
     print("Bye!! %s" % e)

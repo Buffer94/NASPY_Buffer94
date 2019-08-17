@@ -99,10 +99,9 @@ class NetInterface:
         source_ip = '0.0.0.0'
         dest_ip = '255.255.255.255'
 
-        DHCP_discover = Ether(src=local_mac, dst=broad_mac) / IP(src=source_ip, dst=dest_ip) / UDP(
-            dport=67, sport=68) / BOOTP(chaddr=local_mac_raw) / DHCP(
-            options=[('message-type', 'discover'), 'end'])
-        sendp(DHCP_discover, iface=self.interface, count=15, inter=0.5, verbose=False)
+        dhcp_discover = Ether(src=local_mac, dst=broad_mac) / IP(src=source_ip, dst=dest_ip) / UDP(
+            dport=67, sport=68) / BOOTP(chaddr=local_mac_raw) / DHCP(options=[('message-type', 'discover'), 'end'])
+        sendp(dhcp_discover, iface=self.interface, count=15, inter=0.5, verbose=False)
 
     def send_arp_request(self, ip, netmask):
         print('sending ARP Request...')
@@ -114,9 +113,12 @@ class NetInterface:
 
     def send_dns_request(self):
         print('sending DNS Request...')
-        # for i in range(15):
-        #     print("sending %s 's dns request..." % i)
-        #TODO
+        dest_ip = '255.255.255.255'
+
+        dns_request = IP(dst=dest_ip)/UDP(sport=RandShort(), dport=53) / \
+                      DNS(rd=1, qd=DNSQR(qname="google.it", qtype="A"))
+
+        send(dns_request, iface=self.interface, verbose=False, count=15, inter=0.5)
 
     def read_credentials(self):
         credentials = list()

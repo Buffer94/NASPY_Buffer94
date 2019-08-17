@@ -15,9 +15,23 @@ class DHCPServer:
         self.ip_address = ip_address
 
     def equals(self, n_mac_address):
-        if self.mac_address == n_mac_address:
-            return True
-        return False
+        return True if self.mac_address == n_mac_address else False
+
+
+class DNSServer:
+
+    def __init__(self, ip_address, mac_address):
+        self.ip_address = ip_address
+        self.mac_address = mac_address
+
+    def print_info(self):
+        print('Ip Address: %s MAC address: %s' % (self.ip_address, self.mac_address))
+
+    def set_ip_address(self, ip_address):
+        self.ip_address = ip_address
+
+    def equals(self, n_mac_address):
+        return True if self.mac_address == n_mac_address else False
 
 
 class ARPTable:

@@ -45,6 +45,39 @@ class RogueDHCPMonitor:
             print("No DHCP Servers found!")
 
 
+class RogueDNSMonitor:
+
+    def __init__(self):
+        self.dns_servers = list()
+
+    def update_dns_servers(self, pkt):
+        if pkt.dns.flags_response == '1':
+            server_ip = pkt.ip.src
+            server_mac = pkt.eth.src
+
+            if len(self.dns_servers) > 1:
+                for dns_server in self.dns_servers:
+                    if dns_server.equals(server_mac):
+                        found = True
+                if not found:
+                    new_dns_server = DNSServer(server_ip, server_mac)
+                    self.dns_servers.append(new_dns_server)
+                    print("New DNS Server Discovered")
+                    new_dns_server.print_info()
+            else:
+                new_dns_server = DNSServer(server_ip, server_mac)
+                self.dns_servers.append(new_dns_server)
+                print("New DNS Server Discovered")
+                new_dns_server.print_info()
+
+    def print_dns_servers(self):
+        if len(self.dns_servers) > 0:
+            print("I've found this DHCP Servers on the network:")
+            for dns_server in self.dns_servers:
+                dns_server.print_info()
+        else:
+            print("No DNS Servers found!")
+
 class ArpMonitor:
 
     def __init__(self):
