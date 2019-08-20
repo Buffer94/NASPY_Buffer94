@@ -243,3 +243,110 @@ class CiscoSSH:
             self.child.sendline('\n')
             self.child.expect('%s#' % self.switch.name)
         print("Done!")
+
+
+class ExtremeSSH:
+    def __init__(self, c_interface, m_timeout, switch_mac):
+        self.connected_interface = c_interface
+        self.switch_mac = switch_mac
+        self.monitor_timeout = m_timeout
+        self.switch_interfaces = list()
+        self.child = None
+        self.switch = None
+
+    def connect(self, ip, name, pwd, max_attempts=1):
+        attempts = 0
+        while attempts < max_attempts:
+            try:
+                self.child = pexpect.spawn("ssh %s@%s" % (name, ip))
+                self.child.timeout = 15
+                self.child.expect('password:')
+                self.child.sendline(pwd)
+                self.child.expect('#')
+                self.child.sendline('disable clipaging')
+                self.child.expect('#')
+                print("Connected!")
+                self.switch = Switch(name, ip, pwd, pwd, self.connected_interface)
+                return True
+            except pexpect.EOF:
+                attempts += 1
+                if "Host key verification failed." in str(self.child.before):
+                    print("Host key verification failed. Retring!")
+                    os.system('ssh-keygen -f "/root/.ssh/known_hosts" -R %s' % ip)
+                    self.connect_with_no_host_auth(ip, name, pwd)
+                else:
+                    print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n")
+                    return False
+            except pexpect.TIMEOUT:
+                attempts += 1
+                if "The authenticity of host" in str(self.child.before):
+                    self.connect_with_no_host_auth(ip, name, pwd)
+                else:
+                    print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n")
+                    self.child.close()
+                    return False
+
+    def connect_with_no_host_auth(self, ip, name, pwd):
+        print("I'm trying to acknowledge the authenticity of the new host")
+        try:
+            self.child = pexpect.spawn("ssh %s@%s" % (name, ip))
+            self.child.expect('The authenticity of host')
+            self.child.sendline('yes')
+            self.child.expect('password:')
+            self.child.sendline(pwd)
+            self.child.expect('#')
+            self.child.sendline('disable clipaging')
+            self.child.expect('#')
+            print("Connected!")
+            self.switch = Switch(name, ip, pwd, pwd, self.connected_interface)
+            return True
+        except (pexpect.EOF, pexpect.TIMEOUT):
+            print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n")
+            self.child.close()
+            return False
+
+    def take_interfaces(self):
+        self.child.sendline('show ports vid')
+        self.child.expect('#')
+        output = str(self.child.before)
+        raw_ports = re.findall('((\d+)\s+(Unt|T)*agged\s+(\d+([,]\s\d+)*|None)'
+                               '(....\s+(Unt|T)*agged\s+(\d+([,]\s\d+)*|None))*)', output)
+
+        for raw_port in raw_ports:
+            if raw_port[1] != '':
+                p_number = raw_port[1]
+                vlans = list()
+                if raw_port[3] != 'None':
+                    if ',' in raw_port[3]:
+                        for vlan in raw_port[3].split(', '):
+                            vlans.append(vlan)
+                    else:
+                        vlans.append(raw_port[3])
+                if raw_port[7] != 'None' and raw_port[7] != '':
+                    if ',' in raw_port[7]:
+                        for vlan in raw_port[7].split(', '):
+                            vlans.append(vlan)
+                    else:
+                        vlans.append(raw_port[7])
+                mac_parts = self.switch_mac.split(':')
+                raw_mac = ''
+                for part in mac_parts:
+                    raw_mac += part
+                num_mac = hex(int(raw_mac, 16) + int(p_number))[2:]
+                if (len(num_mac) % 2) == 0:
+                    mac = ''
+                else:
+                    mac = '0'
+
+                for index in range(0, len(num_mac)):
+                    if index > 0 and ((index % 2) == 0 and (len(num_mac) % 2) == 0) \
+                            or ((index % 2) != 0 and (len(num_mac) % 2) != 0):
+                        mac += ':'
+                    mac += num_mac[index]
+                port = Port(p_number, mac)
+                self.switch.add_ports(port)
+                for vlan in vlans:
+                    self.switch.set_blocked_port(mac, vlan)
+
+        self.switch.print_spanning_tree()
+        self.switch.print_trunk_ports()

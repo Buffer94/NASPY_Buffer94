@@ -78,6 +78,7 @@ class RogueDNSMonitor:
         else:
             print("No DNS Servers found!")
 
+
 class ArpMonitor:
 
     def __init__(self):
