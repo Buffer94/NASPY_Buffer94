@@ -195,37 +195,79 @@ class STPMonitor:
                 self.waiting_timer = (int(pkt.stp.forward) + int(pkt.stp.max_age))
 
             if 'type' in pkt.eth.field_names and pkt.eth.type == '0x00008100':
+                found = False
                 for switch in self.switches_table:
-                    sender_mac = pkt.eth.src
+                    if pkt.eth.src == pkt.stp.bridge_ext and pkt.stp.portid != '0x00008000':
+                        sender_mac = self.calculate_sender_mac(pkt.eth.src, pkt.stp.portid)
+                    else:
+                        sender_mac = pkt.eth.src
+
                     vlan_id = pkt.vlan.id
+
                     if switch.contains(sender_mac):
+                        found = True
                         switch.get_port(sender_mac).trunk = True
-                        switch.set_designated_port(sender_mac, vlan_id,
-                                                   priority=pkt.stp.root_prio, b_id=pkt.stp.root_hw)
+                        switch.set_designated_port(sender_mac, vlan_id, override=True,
+                                                   priority=pkt.stp.root_prio, b_id=pkt.stp.root_hw, initialization=True)
+
+                if not found:
+                    switch = Switch(pkt.stp.bridge_hw, None, None, None, None)
+                    vlan_id = pkt.stp.root_ext if pkt.stp.bridge_ext == 0 else pkt.stp.bridge_ext
+                    if pkt.eth.src == vlan_id and pkt.stp.portid != '0x00008000':
+                        sender_mac = self.calculate_sender_mac(pkt.eth.src, pkt.stp.portid)
+                    else:
+                        sender_mac = pkt.eth.src
+
+                    bridge_id = pkt.stp.bridge_hw
+                    priority = pkt.stp.bridge_prio
+                    port = Port(sender_mac, sender_mac)
+                    switch.add_ports(port)
+                    switch.set_designated_port(port.MAC, vlan_id, priority=priority,
+                                               b_id=bridge_id, initialization=True)
+                    switch.set_stp_root_id(vlan_id, pkt.stp.root_hw)
+                    self.switches_table.append(switch)
             else:
                 found = False
                 for switch in self.switches_table:
-                    sender_mac = pkt.eth.src
-                    vlan_id = pkt.stp.bridge_ext
+                    if pkt.eth.src == pkt.stp.bridge_ext and pkt.stp.portid != '0x00008000':
+                        sender_mac = self.calculate_sender_mac(pkt.eth.src, pkt.stp.portid)
+                    else:
+                        sender_mac = pkt.eth.src
+
+                    if pkt.stp.bridge_ext == 0 and pkt.stp.root_ext == 0:
+                        vlan_id = 0
+                        if switch.contains(sender_mac):
+                            port = switch.get_port(sender_mac)
+                            if not port.trunk and len(port.get_vlan()) > 0:
+                                vlan_id = port.get_vlan()[0]
+                    else:
+                        vlan_id = pkt.stp.root_ext if pkt.stp.bridge_ext == 0 else pkt.stp.bridge_ext
+
                     if switch.bridge_id == pkt.stp.bridge_hw:
-                        switch.set_designated_port(sender_mac, vlan_id,
-                                                   priority=pkt.stp.root_prio, b_id=pkt.stp.root_hw)
+                        switch.set_designated_port(sender_mac, vlan_id, override=True, priority=pkt.stp.root_prio,
+                                                   b_id=pkt.stp.root_hw, initialization=True)
                         found = True
                     else:
                         if switch.bridge_id is None and switch.contains(sender_mac):
                             switch.bridge_id = pkt.stp.bridge_hw
-                            switch.set_designated_port(sender_mac, vlan_id,
-                                                       priority=pkt.stp.root_prio, b_id=pkt.stp.root_hw)
+                            switch.set_designated_port(sender_mac, vlan_id, override=True, priority=pkt.stp.root_prio,
+                                                       b_id=pkt.stp.root_hw, initialization=True)
                             found = True
 
                 if not found:
                     switch = Switch(pkt.stp.bridge_hw, None, None, None, None)
-                    vlan_id = pkt.stp.bridge_ext
+                    vlan_id = pkt.stp.root_ext if pkt.stp.bridge_ext == 0 else pkt.stp.bridge_ext
+                    if pkt.eth.src == vlan_id and pkt.stp.portid != '0x00008000':
+                        sender_mac = self.calculate_sender_mac(pkt.eth.src, pkt.stp.portid)
+                    else:
+                        sender_mac = pkt.eth.src
+
                     bridge_id = pkt.stp.bridge_hw
                     priority = pkt.stp.bridge_prio
-                    port = Port(pkt.eth.src, pkt.eth.src)
+                    port = Port(sender_mac, sender_mac)
                     switch.add_ports(port)
-                    switch.set_designated_port(port.MAC, vlan_id, priority=priority, b_id=bridge_id)
+                    switch.set_designated_port(port.MAC, vlan_id, priority=priority,
+                                               b_id=bridge_id, initialization=True)
                     switch.set_stp_root_id(vlan_id, pkt.stp.root_hw)
                     self.switches_table.append(switch)
 
@@ -234,9 +276,28 @@ class STPMonitor:
                 if pkt.dtp.tas == '0x00000001' or pkt.dtp.tos == '0x00000001':
                     for switch in self.switches_table:
                         sender_mac = pkt.eth.src
+
                         if switch.contains(sender_mac):
                             print("port %s is trunk" % sender_mac)
                             switch.get_port(sender_mac).trunk = True
+
+    @staticmethod
+    def calculate_sender_mac(src, port_id):
+        mac_parts = src.split(':')
+        raw_mac = ''
+        for part in mac_parts:
+            raw_mac += part
+        num_mac = hex(int(raw_mac, 16) + (int(port_id, 16) - 32768))[2:]
+        if (len(num_mac) % 2) == 0:
+            sender_mac = ''
+        else:
+            sender_mac = '0'
+        for index in range(0, len(num_mac)):
+            if index > 0 and ((index % 2) == 0 and (len(num_mac) % 2) == 0) \
+                    or ((index % 2) != 0 and (len(num_mac) % 2) != 0):
+                sender_mac += ':'
+            sender_mac += num_mac[index]
+        return sender_mac
 
     def discover_topology_changes(self, my_host_interface, password):
         net_interface = NetInterface(my_host_interface, password)
@@ -276,11 +337,12 @@ class STPMonitor:
                             rcvd_pkt = dict()
                             port_capture.sniff(packet_count=len(switch.get_vlans()), timeout=10)
                             for pkt in port_capture:
-                                if pkt.stp.bridge_ext not in port.pvlan_status:
+                                vlan_id = pkt.stp.root_ext if pkt.stp.bridge_ext == 0 else pkt.stp.bridge_ext
+                                if vlan_id not in port.pvlan_status:
                                     switch.set_blocked_port(port.MAC, pkt.stp.bridge_ext,
                                                             priority=pkt.stp.root_prio, b_id=pkt.stp.root_hw)
-                                if pkt.stp.bridge_ext not in rcvd_pkt and pkt.stp.bridge_hw != switch.bridge_id:
-                                    rcvd_pkt[pkt.stp.bridge_ext] = pkt
+                                if vlan_id not in rcvd_pkt and pkt.stp.bridge_hw != switch.bridge_id:
+                                    rcvd_pkt[vlan_id] = pkt
 
                             for vlan in port.get_vlan():
                                 if vlan not in bridge_id_min:
@@ -296,10 +358,10 @@ class STPMonitor:
                             port_capture.sniff(packet_count=1, timeout=10)
                             if len(port_capture) > 0:
                                 pkt = port_capture[0]
-                                if pkt.stp.bridge_ext not in port.pvlan_status:
-                                    switch.set_blocked_port(port.MAC, pkt.stp.bridge_ext,
+                                vlan = pkt.stp.root_ext if pkt.stp.bridge_ext == 0 else pkt.stp.bridge_ext
+                                if vlan not in port.pvlan_status:
+                                    switch.set_blocked_port(port.MAC, vlan,
                                                             priority=pkt.stp.root_prio, b_id=pkt.stp.root_hw)
-                                vlan = pkt.stp.bridge_ext
                                 bridge_id_min[vlan], root_port[vlan], blocked_port[vlan] = self.get_min_bridge_id(pkt, bridge_id_min[vlan], port.MAC,
                                                                                                                   root_port[vlan], blocked_port[vlan])
             if switch.connected_interface is not None:
@@ -325,13 +387,16 @@ class STPMonitor:
                                         switch.remove_port_from_stp(vlan_id, port)
 
     def tc_pkt_callback(self, pkt):
-        sender_mac = pkt.eth.src
         if pkt.highest_layer.upper() == 'STP':
+            if pkt.eth.src == pkt.stp.bridge_ext and pkt.stp.portid != '0x00008000':
+                sender_mac = self.calculate_sender_mac(pkt.eth.src, pkt.stp.portid)
+            else:
+                sender_mac = pkt.eth.src
             pkt_bridge_id = pkt.stp.bridge_hw
             switch = self.get_switch(pkt_bridge_id)
             if switch is not None:
                 port = switch.get_port(sender_mac)
-                pkt_vlan_id = pkt.stp.bridge_ext
+                pkt_vlan_id = pkt.stp.root_ext if pkt.stp.bridge_ext == 0 else pkt.stp.bridge_ext
                 pkt_root_id = pkt.stp.root_hw
                 if pkt_bridge_id == self.switch_baseline[pkt_vlan_id].bridge_id:
                     if self.port_in_baseline(port, pkt_vlan_id):
@@ -371,6 +436,7 @@ class STPMonitor:
                             print("New vlan (%s) has added at this trunk port %s" % (pkt_vlan_id, port.name))
                             switch.set_designated_port(sender_mac, pkt_vlan_id, priority=pkt.stp.root_prio, b_id=pkt_root_id)
         else:
+            sender_mac = pkt.eth.src
             #NEW TRUNK PORT DISCOVER
             if pkt.highest_layer.upper() == 'DTP' and (pkt.dtp.tas == '0x00000001' or pkt.dtp.tos == '0x00000001'):
                 for switch in self.switches_table:
@@ -427,21 +493,34 @@ class STPMonitor:
                         if 'type' in pkt.eth.field_names and pkt.eth.type == '0x00008100':
                             port.trunk = True
                             tagged_vlan = pkt.vlan.id
-                            switch.set_blocked_port(port.MAC, tagged_vlan)
-                            if pkt.stp.bridge_ext not in rcvd_pkt:
-                                rcvd_pkt[pkt.stp.bridge_ext] = pkt
-                            if tagged_vlan != pkt.stp.bridge_ext:
-                                switch.set_blocked_port(port.MAC, pkt.stp.bridge_ext,
-                                                        priority=pkt.stp.root_prio, b_id=pkt.stp.root_hw)
-                        else:
-                            vlan_id = pkt.stp.bridge_ext
+                            switch.set_blocked_port(port.MAC, tagged_vlan, initialization=True)
+                            vlan_id = pkt.stp.root_ext if pkt.stp.bridge_ext == 0 else pkt.stp.bridge_ext
                             if vlan_id not in rcvd_pkt:
                                 rcvd_pkt[vlan_id] = pkt
-                            switch.set_blocked_port(port.MAC, vlan_id,
-                                                    priority=pkt.stp.root_prio, b_id=pkt.stp.root_hw)
+                            if tagged_vlan != vlan_id:
+                                # print("VLAN: %s , stp.root_ext: %s - stp.bridge_ext: %s - eth: %s" % (vlan_id, pkt.stp.root_ext, pkt.stp.bridge_ext, pkt.eth.src))
+                                switch.set_blocked_port(port.MAC, vlan_id, priority=pkt.stp.root_prio,
+                                                        b_id=pkt.stp.root_hw, initialization=True)
+                        else:
+                            vlan_id = pkt.stp.root_ext if pkt.stp.bridge_ext == 0 else pkt.stp.bridge_ext
+
+                            if vlan_id not in rcvd_pkt:
+                                rcvd_pkt[vlan_id] = pkt
+
+                            # print("VLAN: %s , stp.root_ext: %s - stp.bridge_ext: %s - eth: %s" %
+                            #       (vlan_id, pkt.stp.root_ext, pkt.stp.bridge_ext, pkt.eth.src))
+                            switch.set_blocked_port(port.MAC, vlan_id, priority=pkt.stp.root_prio,
+                                                    b_id=pkt.stp.root_hw, initialization=True)
                     if not port.trunk:
                         pkt = port_capture[0]
-                        vlan = pkt.stp.bridge_ext
+                        if pkt.stp.bridge_ext == 0 and pkt.stp.root_ext == 0:
+                            if 'pvst' in pkt.stp.field_names:
+                                vlan = pkt.stp.pvst.origvlan
+                        else:
+                            vlan = pkt.stp.root_ext if pkt.stp.bridge_ext == 0 else pkt.stp.bridge_ext
+
+                        # print("VLAN: %s , stp.root_ext: %s - stp.bridge_ext: %s - eth: %s" % (
+                        # vlan, pkt.stp.root_ext, pkt.stp.bridge_ext, pkt.eth.src))
                         bridge_id_min[vlan], root_port[vlan] = self.get_min_bridge_id(pkt, bridge_id_min[vlan],
                                                                                       port.MAC, root_port[vlan])
                     else:
@@ -457,7 +536,7 @@ class STPMonitor:
 
                 for vlan_id in switch.get_vlans():
                     if root_port[vlan_id] is not None:
-                        switch.set_root_port(root_port[vlan_id], vlan_id, True)
+                        switch.set_root_port(root_port[vlan_id], vlan_id, override=True)
 
     @staticmethod
     def get_min_bridge_id(pkt, bridge_min_id, port_mac, root_port, blocked_port=0):
@@ -513,9 +592,14 @@ class STPMonitor:
             port_capture = pyshark.LiveCapture(interface=my_host_interface, display_filter="stp")
             port_capture.sniff(packet_count=1, timeout=timeout)
             pkt = port_capture[0]
-            vlan = pkt.stp.bridge_ext
-            port_mac = pkt.eth.src
-            switch.set_designated_port(port_mac, vlan)
+            vlan = pkt.stp.root_ext if pkt.stp.bridge_ext == 0 else pkt.stp.bridge_ext
+
+            if pkt.eth.src == pkt.stp.bridge_ext and pkt.stp.portid != '0x00008000':
+                port_mac = self.calculate_sender_mac(pkt.eth.src, pkt.stp.portid)
+            else:
+                port_mac = pkt.eth.src
+
+            switch.set_designated_port(port_mac, vlan, initialization=True)
 
     def add_switch(self, switch):
         if switch not in self.switches_table:

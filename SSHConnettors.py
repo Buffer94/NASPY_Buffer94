@@ -344,9 +344,51 @@ class ExtremeSSH:
                         mac += ':'
                     mac += num_mac[index]
                 port = Port(p_number, mac)
+                if p_number not in self.switch_interfaces:
+                    self.switch_interfaces.append(p_number)
+
                 self.switch.add_ports(port)
                 for vlan in vlans:
                     self.switch.set_blocked_port(mac, vlan)
 
         self.switch.print_spanning_tree()
         self.switch.print_trunk_ports()
+
+    def enable_monitor_mode(self):
+        try:
+            print("Enabling monitor mode...")
+            self.child.sendline('create mirror M1')
+            self.child.expect('#')
+            self.child.sendline('configure mirror M1 to port %s' % self.connected_interface)
+            self.child.expect('#')
+
+            for interface in self.switch_interfaces:
+                if interface != self.connected_interface:
+                    self.child.sendline('configure mirror M1 add port %s' % interface)
+                    self.child.expect('#')
+
+            self.child.sendline('enable mirror M1')
+            self.child.expect('(y/N)')
+            self.child.sendline('yes')
+            self.child.expect('#')
+            self.child.close()
+        except (pexpect.EOF, pexpect.TIMEOUT):
+            print("Connection Closed!")
+
+    def enable_monitor_mode_on_specific_port(self, port_name):
+        try:
+            print("Enabling monitor mode...")
+            self.child.sendline('create mirror M1')
+            self.child.expect('#')
+            self.child.sendline('configure mirror M1 to port %s' % self.connected_interface)
+            self.child.expect('#')
+            self.child.sendline('configure mirror M1 add port %s' % port_name)
+            self.child.expect('#')
+            self.child.sendline('enable mirror M1')
+            self.child.expect('(y/N)')
+            self.child.sendline('yes')
+            self.child.expect('#')
+            self.child.close()
+        except (pexpect.EOF, pexpect.TIMEOUT):
+            print("Connection Closed!")
+        self.child.close()

@@ -123,7 +123,9 @@ class SpanningTreeInstance:
             print("  This switch is the Root Bridge")
         print("  Recents Topology Change: %s" % self.tc_counter)
         for port in self.ports:
-            print("\tPort: %s - Address: %s, Status: %s - #Rec_CNG: %s" % (port.name, port.MAC, port.pvlan_status[self.vlan_id], port.pvlan_status_change_counter[self.vlan_id]))
+            print("\tPort: %s - Address: %s, Status: %s - #Rec_CNG: %s" % (port.name, port.MAC,
+                                                                           port.pvlan_status[self.vlan_id],
+                                                                           port.pvlan_status_change_counter[self.vlan_id]))
 
 
 class Switch:
@@ -155,23 +157,23 @@ class Switch:
         if port not in self.ports:
             self.ports.append(port)
 
-    def set_designated_port(self, port_address, vlan_id, override=False, priority=None, b_id=None):
+    def set_designated_port(self, port_address, vlan_id, override=False, priority=None, b_id=None, initialization=False):
         for port in self.ports:
             if port.MAC == port_address:
                 self.add_port_to_spanning_tree(vlan_id, port, priority, b_id)
-                port.set_port_as_designated(vlan_id, override)
+                port.set_port_as_designated(vlan_id, override, initialization)
 
-    def set_blocked_port(self, port_address, vlan_id, override=False, priority=None, b_id=None):
+    def set_blocked_port(self, port_address, vlan_id, override=False, priority=None, b_id=None, initialization=False):
         for port in self.ports:
             if port.MAC == port_address:
                 self.add_port_to_spanning_tree(vlan_id, port, priority, b_id)
-                port.set_port_as_blocked(vlan_id, override)
+                port.set_port_as_blocked(vlan_id, override, initialization)
 
-    def set_root_port(self, port_address, vlan_id, override=False, priority=None, b_id=None):
+    def set_root_port(self, port_address, vlan_id, override=False, priority=None, b_id=None, initialization=False):
         for port in self.ports:
             if port.MAC == port_address:
                 self.add_port_to_spanning_tree(vlan_id, port, priority, b_id)
-                port.set_port_as_root(vlan_id, override)
+                port.set_port_as_root(vlan_id, override, initialization)
 
     def print_spanning_tree(self):
         for vlan_id in self.spanning_tree_instances:
@@ -274,35 +276,35 @@ class Port:
         self.pvlan_status_change_counter = dict()
         self.trunk = False
 
-    def set_port_as_designated(self, vlan_id=1, override=False):
+    def set_port_as_designated(self, vlan_id=1, override=False, initialization=False):
         if len(self.pvlan_status) > 0 and vlan_id not in self.pvlan_status and not self.trunk:
             self.trunk = True
         if override or vlan_id not in self.pvlan_status:
             self.pvlan_status[vlan_id] = "Designated"
-            if not override:
+            if initialization:
                 self.pvlan_status_change_counter[vlan_id] = 0
 
-    def set_port_as_root(self, vlan_id=1, override=False):
+    def set_port_as_root(self, vlan_id=1, override=False, initialization=False):
         if len(self.pvlan_status) > 0 and vlan_id not in self.pvlan_status and not self.trunk:
             self.trunk = True
         if override or vlan_id not in self.pvlan_status:
             self.pvlan_status[vlan_id] = "Root"
-            if not override:
+            if initialization:
                 self.pvlan_status_change_counter[vlan_id] = 0
 
-    def set_port_as_blocked(self, vlan_id=1, override=False):
+    def set_port_as_blocked(self, vlan_id=1, override=False, initialization=False):
         if len(self.pvlan_status) > 0 and vlan_id not in self.pvlan_status and not self.trunk:
             self.trunk = True
         if override or vlan_id not in self.pvlan_status:
             self.pvlan_status[vlan_id] = "Blocked"
-            if not override:
+            if initialization:
                 self.pvlan_status_change_counter[vlan_id] = 0
 
     def increase_status_change_counter(self, vlan):
         self.pvlan_status_change_counter[vlan] += 1
 
     def get_vlan(self):
-        return self.pvlan_status.keys()
+        return list(self.pvlan_status.keys())
 
     def print_vlans(self):
         out = list()
