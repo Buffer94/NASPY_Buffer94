@@ -248,6 +248,7 @@ class CiscoSSH:
 class ExtremeSSH:
     def __init__(self, c_interface, m_timeout, switch_mac):
         self.connected_interface = c_interface
+        self.vlan = 3
         self.switch_mac = switch_mac
         self.monitor_timeout = m_timeout
         self.switch_interfaces = list()
@@ -349,7 +350,7 @@ class ExtremeSSH:
 
                 self.switch.add_ports(port)
                 for vlan in vlans:
-                    self.switch.set_blocked_port(mac, vlan)
+                    self.switch.set_blocked_port(mac, vlan, initialization=True)
 
         self.switch.print_spanning_tree()
         self.switch.print_trunk_ports()
@@ -357,6 +358,7 @@ class ExtremeSSH:
     def enable_monitor_mode(self):
         try:
             print("Enabling monitor mode...")
+            self.put_callback()
             self.child.sendline('create mirror M1')
             self.child.expect('#')
             self.child.sendline('configure mirror M1 to port %s' % self.connected_interface)
@@ -378,6 +380,7 @@ class ExtremeSSH:
     def enable_monitor_mode_on_specific_port(self, port_name):
         try:
             print("Enabling monitor mode...")
+            self.put_callback()
             self.child.sendline('create mirror M1')
             self.child.expect('#')
             self.child.sendline('configure mirror M1 to port %s' % self.connected_interface)
@@ -392,3 +395,33 @@ class ExtremeSSH:
         except (pexpect.EOF, pexpect.TIMEOUT):
             print("Connection Closed!")
         self.child.close()
+
+    def put_callback(self):
+        self.clear_upm_profile()
+        self.child.sendline('create upm profile disable_mirror')
+        self.child.expect('\n')
+        self.child.sendline('disable mirror M1')
+        self.child.expect('\r')
+        self.child.sendline('delete mirror M1')
+        self.child.expect('\r')
+        self.child.sendline('configure vlan %s add ports %s untagged' % (self.vlan, self.connected_interface))
+        self.child.expect('\r')
+        self.child.sendline('delete upm timer t')
+        self.child.expect('\r')
+        self.child.sendline('.')
+        self.child.expect('#')
+        self.child.sendline('create upm timer t')
+        self.child.expect('#')
+        self.child.sendline('configure upm timer t after %s' % self.monitor_timeout)
+        self.child.expect('#')
+        self.child.sendline('configure upm timer t profile disable_mirror')
+        self.child.expect('#')
+        self.child.sendline('enable upm timer t')
+        self.child.expect('#')
+        print("Finished!")
+
+    def clear_upm_profile(self):
+        print("Clearing UPM Profile")
+        self.child.sendline('delete upm profile disable_mirror')
+        self.child.expect('#')
+        print("Done")
