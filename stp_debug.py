@@ -10,7 +10,7 @@ interface = 'enp0s3'
 net_interface = NetInterface(interface)
 net_interface.timeout = 35
 
-net_interface.wait_cdp_packet()
+net_interface.wait_for_initial_informations()
 auth = net_interface.ssh_no_credential_connection()
 
 stp_monitor = STPMonitor()

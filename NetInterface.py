@@ -1,4 +1,6 @@
 import getpass
+from builtins import print
+
 import pyshark
 from scapy.all import *
 from SSHConnettors import *
@@ -30,16 +32,30 @@ class NetInterface:
                 backend=default_backend()
             )
 
-    def wait_cdp_packet(self):
-        print("Wait for CDP Packet ... ")
-        cdp_sniff = pyshark.LiveCapture(interface=self.interface, display_filter="cdp")
-        cdp_sniff.sniff(packet_count=1)
-        pkt = cdp_sniff[0]
+    def wait_for_initial_information(self):
+        print("Wait for initial configurations... ")
+        sniff = pyshark.LiveCapture(interface=self.interface, display_filter="cdp or lldp")
+        sniff.sniff(packet_count=3)
 
-        if pkt.cdp.number_of_addresses == '1':
-            self.switch_ip = pkt.cdp.nrgyz_ip_address
-        self.switch_MAC = pkt.eth.src
-        self.switch_interface = pkt.cdp.portid
+        for pkt in sniff:
+            if pkt.highest_layer.upper() == 'CDP':
+                if 'number_of_addresses' in pkt.cdp.field_names and pkt.cdp.number_of_addresses == '1':
+                    self.switch_ip = pkt.cdp.nrgyz_ip_address
+                if 'Port'in pkt.cdp.portid:
+                    self.switch_interface = pkt.cdp.portid.split('Port: ')[1]
+                else:
+                    self.switch_interface = pkt.cdp.portid
+                self.switch_MAC = pkt.eth.src
+            if pkt.highest_layer.upper() == 'LLDP':
+                if 'mgn_addr_ip4' in pkt.lldp.field_names:
+                    self.switch_ip = pkt.lldp.mgn_addr_ip4
+                if 'chassis_id_mac' in pkt.lldp.field_names:
+                    self.switch_MAC = pkt.lldp.chassis_id_mac
+                else:
+                    self.switch_MAC = pkt.eth.src
+                self.switch_interface = pkt.lldp.port_id
+
+        print("initial configurations done!")
 
     def ssh_connection(self):
         if self.switch_ip is None:
@@ -49,39 +65,59 @@ class NetInterface:
         switch_en_pwd = getpass.getpass('enable password: ')
 
         print("Connecting to SSH...")
-        #TODO SWITCH FOR VENDOR ADDRESS
-        self.ssh = CiscoSSH(self.switch_interface, self.timeout)
-        self.ssh.connect_with_attempts(self.switch_ip, switch_name, switch_pwd, switch_en_pwd, 20)
+        self.ssh = self.get_ssh_module_by_vendor()
+        if self.ssh is None:
+            return False
 
-    def parameterized_ssh_connection(self, switch_ip, switch_name, switch_pwd, switch_en_pwd, switch_interface,
-                                     attempts=0):
+        return self.ssh.connect(self.switch_ip, switch_name, switch_pwd, switch_en_pwd, 20)
+
+    def parameterized_ssh_connection(self, switch_mac, switch_ip, switch_name, switch_pwd, switch_en_pwd, switch_interface,
+                                     attempts=1):
         print("Connecting to SSH...")
-        #TODO SWITCH FOR VENDOR ADDRESS
-        self.ssh = CiscoSSH(switch_interface, self.timeout)
+        self.switch_MAC = switch_mac
+        self.ssh = self.get_ssh_module_by_vendor(switch_interface)
+        if self.ssh is None:
+            return False
 
-        if attempts == 0:
-            self.ssh.connect(switch_ip, switch_name, switch_pwd, switch_en_pwd)
-        else:
-            self.ssh.connect_with_attempts(switch_ip, switch_name, switch_pwd, switch_en_pwd, attempts)
+        return self.ssh.connect(switch_ip, switch_name, switch_pwd, switch_en_pwd, attempts)
 
     def ssh_no_credential_connection(self):
         if self.switch_ip is not None:
             print("Connecting to SSH...")
 
-            # TODO SWITCH FOR VENDOR ADDRESS
-            self.ssh = CiscoSSH(self.switch_interface, self.timeout)
+            self.ssh = self.get_ssh_module_by_vendor()
+            if self.ssh is None:
+                return False
 
             credentials = self.read_credentials()
             index = 0
             (name, pwd, en_pwd) = credentials[index]
-            connected = self.ssh.connect_with_attempts(self.switch_ip, name, pwd, en_pwd, 5)
+            connected = self.ssh.connect(self.switch_ip, name, pwd, en_pwd, 5)
 
             while index < (len(credentials)-1) and not connected:
                 index += 1
                 (name, pwd, en_pwd) = credentials[index]
-                connected = self.ssh.connect_with_attempts(self.switch_ip, name, pwd, en_pwd, 5)
+                connected = self.ssh.connect(self.switch_ip, name, pwd, en_pwd, 5)
 
             return connected
+
+    def get_ssh_module_by_vendor(self, connected_interface=None):
+        if connected_interface is None:
+            connected_interface = self.switch_interface
+
+        vendor = None
+        vendors = self.read_vendors()
+        if str(self.switch_MAC[:8]) in vendors:
+            vendor = vendors[str(self.switch_MAC[:8])]
+        else:
+            return None
+
+        if 'Extreme' in vendor:
+            return ExtremeSSH(connected_interface, self.timeout, self.switch_MAC)
+        if 'Cisco' in vendor:
+            return CiscoSSH(connected_interface, self.timeout)
+
+        return None
 
     def enable_monitor_mode(self):
         if self.ssh is not None:
@@ -139,3 +175,11 @@ class NetInterface:
                 credentials.append((name, pwd, en_pwd))
 
             return credentials
+
+    @staticmethod
+    def read_vendors():
+        file = open('mac_vendor.naspy')
+        vendors = eval(file.read())
+        vendors['0c:55:17'] = 'Cisco'
+        file.close()
+        return vendors

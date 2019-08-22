@@ -14,34 +14,41 @@ class CiscoSSH:
         self.child = None
         self.switch = None
 
-    def connect(self, ip, name, pwd, en_pwd):
-        try:
-            self.child = pexpect.spawn("ssh %s@%s" % (name, ip))
-            self.child.timeout = 15
-            self.child.expect('Password:')
-            self.child.sendline(pwd)
-            self.child.expect('>')
-            self.child.sendline('terminal length 0')
-            self.child.expect('>')
-            self.child.sendline('enable')
-            self.child.expect('Password:')
-            self.child.sendline(en_pwd)
-            self.child.expect('%s#' % name)
-            print("Connected!")
-            self.switch = Switch(name, ip, pwd, en_pwd, self.connected_interface)
-        except pexpect.EOF:
-            if "Host key verification failed." in str(self.child.before):
-                print("Host key verification failed. Retring!")
-                os.system('ssh-keygen -f "/root/.ssh/known_hosts" -R %s' % ip)
-                self.connect_with_no_host_auth(ip, name, pwd, en_pwd)
-            else:
-                print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n")
-        except pexpect.TIMEOUT:
-            if "The authenticity of host" in str(self.child.before):
-                self.connect_with_no_host_auth(ip, name, pwd, en_pwd)
-            else:
-                print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n")
+    def connect(self, ip, name, pwd, en_pwd, max_attempts=1):
+        attempts = 0
+        while attempts < max_attempts:
+            try:
+                self.child = pexpect.spawn("ssh %s@%s" % (name, ip))
+                self.child.timeout = 15
+                self.child.expect('Password:')
+                self.child.sendline(pwd)
+                self.child.expect('>')
+                self.child.sendline('terminal length 0')
+                self.child.expect('>')
+                self.child.sendline('enable')
+                self.child.expect('Password:')
+                self.child.sendline(en_pwd)
+                self.child.expect('%s#' % name)
+                print("Connected!")
+                self.switch = Switch(name, ip, pwd, en_pwd, self.connected_interface)
+                return True
+            except (pexpect.EOF, pexpect.TIMEOUT):
+                if "Password" in str(self.child.before):
+                    print("Wrong Credentials..")
+                    return False
+                if "Host key verification failed." in str(self.child.before):
+                    print("Host key verification failed. Retring!")
+                    os.system('ssh-keygen -f "/root/.ssh/known_hosts" -R %s' % ip)
+                    return self.connect_with_no_host_auth(ip, name, pwd, en_pwd)
+                if "The authenticity of host" in str(self.child.before):
+                    return self.connect_with_no_host_auth(ip, name, pwd, en_pwd)
+                if attempts < max_attempts:
+                    print("Attempt #%s failed! i'm triyng again!" % attempts)
+                else:
+                    print("\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n")
+                    return False
                 self.child.close()
+                attempts += 1
 
     def connect_with_no_host_auth(self, ip, name, pwd, en_pwd):
         print("I'm trying to acknowledge the authenticity of the new host")
@@ -62,74 +69,14 @@ class CiscoSSH:
             self.switch = Switch(name, ip, pwd, en_pwd, self.connected_interface)
             return True
         except (pexpect.EOF, pexpect.TIMEOUT):
-            print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n")
+            print("\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n")
             self.child.close()
             return False
 
     def reconnect(self, ip, name, pwd, en_pwd, c_interface, m_timeout):
         self.connected_interface = c_interface
         self.monitor_timeout = m_timeout
-        attempts = 0
-        while attempts < 20:
-            try:
-                self.child = pexpect.spawn("ssh %s@%s" % (name, ip))
-                self.child.timeout = 15
-                self.child.expect('Password:')
-                self.child.sendline(pwd)
-                self.child.expect('>')
-                self.child.sendline('terminal length 0')
-                self.child.expect('>')
-                self.child.sendline('enable')
-                self.child.expect('Password:')
-                self.child.sendline(en_pwd)
-                self.child.expect('%s#' % name)
-                print("Connected!")
-                self.switch = Switch(name, ip, pwd, en_pwd, self.connected_interface)
-                return True
-            except (pexpect.EOF, pexpect.TIMEOUT):
-                if attempts < 20:
-                    print("Attempt #%s failed! i'm triyng again!" % attempts)
-                else:
-                    print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n")
-                    return False
-                self.child.close()
-                attempts += 1
-
-    def connect_with_attempts(self, ip, name, pwd, en_pwd, max_attempts):
-        attempts = 0
-        while attempts < max_attempts:
-            try:
-                self.child = pexpect.spawn("ssh %s@%s" % (name, ip))
-                self.child.timeout = 15
-                self.child.expect('Password:')
-                self.child.sendline(pwd)
-                self.child.expect('>')
-                self.child.sendline('terminal length 0')
-                self.child.expect('>')
-                self.child.sendline('enable')
-                self.child.expect('Password:')
-                self.child.sendline(en_pwd)
-                self.child.expect('%s#' % name)
-                self.switch = Switch(name, ip, pwd, en_pwd, self.connected_interface)
-                print("Connected!")
-                return True
-            except (pexpect.EOF, pexpect.TIMEOUT):
-                if "Password" in str(self.child.before):
-                    print("Wrong Credentials..")
-                    return False
-                if "Host key verification failed." in str(self.child.before):
-                    print("Host key verification failed. Retring!")
-                    os.system('ssh-keygen -f "/root/.ssh/known_hosts" -R %s' % ip)
-                    self.connect_with_no_host_auth(ip, name, pwd, en_pwd)
-                if "The authenticity of host" in str(self.child.before):
-                    return self.connect_with_no_host_auth(ip, name, pwd, en_pwd)
-                if attempts < max_attempts:
-                    print("Attempt #%s failed! i'm triyng again!" % attempts)
-                else:
-                    print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n")
-                    return False
-                self.child.close()
-                attempts += 1
+        self.connect(ip, name, pwd, en_pwd, 20)
 
     def take_interfaces(self):
         self.child.sendline('show interfaces | i (.* line protocol is )|(.* address is)')
@@ -255,7 +202,7 @@ class ExtremeSSH:
         self.child = None
         self.switch = None
 
-    def connect(self, ip, name, pwd, max_attempts=1):
+    def connect(self, ip, name, pwd, en_pwd, max_attempts=1):
         attempts = 0
         while attempts < max_attempts:
             try:
@@ -267,24 +214,23 @@ class ExtremeSSH:
                 self.child.sendline('disable clipaging')
                 self.child.expect('#')
                 print("Connected!")
-                self.switch = Switch(name, ip, pwd, pwd, self.connected_interface)
+                self.switch = Switch(name, ip, pwd, en_pwd, self.connected_interface)
                 return True
-            except pexpect.EOF:
+            except (pexpect.EOF, pexpect.TIMEOUT):
                 attempts += 1
+                if "password" in str(self.child.before):
+                    print("Wrong Credentials..")
+                    return False
                 if "Host key verification failed." in str(self.child.before):
                     print("Host key verification failed. Retring!")
                     os.system('ssh-keygen -f "/root/.ssh/known_hosts" -R %s' % ip)
-                    self.connect_with_no_host_auth(ip, name, pwd)
-                else:
-                    print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n")
-                    return False
-            except pexpect.TIMEOUT:
-                attempts += 1
+                    return self.connect_with_no_host_auth(ip, name, pwd)
                 if "The authenticity of host" in str(self.child.before):
-                    self.connect_with_no_host_auth(ip, name, pwd)
+                    return self.connect_with_no_host_auth(ip, name, pwd)
+                if attempts < max_attempts:
+                    print("Attempt #%s failed! i'm triyng again!" % attempts)
                 else:
-                    print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n")
-                    self.child.close()
+                    print("\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n")
                     return False
 
     def connect_with_no_host_auth(self, ip, name, pwd):
@@ -302,7 +248,7 @@ class ExtremeSSH:
             self.switch = Switch(name, ip, pwd, pwd, self.connected_interface)
             return True
         except (pexpect.EOF, pexpect.TIMEOUT):
-            print("%s\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n")
+            print("\n\n>>>>>>>>>>>CONNECTION ERROR<<<<<<<<<<<\n\n")
             self.child.close()
             return False
 
@@ -333,17 +279,13 @@ class ExtremeSSH:
                 raw_mac = ''
                 for part in mac_parts:
                     raw_mac += part
-                num_mac = hex(int(raw_mac, 16) + int(p_number))[2:]
-                if (len(num_mac) % 2) == 0:
-                    mac = ''
-                else:
-                    mac = '0'
-
+                num_mac = hex(int(raw_mac, 16) + int(p_number))[2:].zfill(12)
+                mac = ''
                 for index in range(0, len(num_mac)):
-                    if index > 0 and ((index % 2) == 0 and (len(num_mac) % 2) == 0) \
-                            or ((index % 2) != 0 and (len(num_mac) % 2) != 0):
+                    if index > 0 and (index % 2) == 0:
                         mac += ':'
                     mac += num_mac[index]
+
                 port = Port(p_number, mac)
                 if p_number not in self.switch_interfaces:
                     self.switch_interfaces.append(p_number)
@@ -351,9 +293,7 @@ class ExtremeSSH:
                 self.switch.add_ports(port)
                 for vlan in vlans:
                     self.switch.set_blocked_port(mac, vlan, initialization=True)
-
-        self.switch.print_spanning_tree()
-        self.switch.print_trunk_ports()
+        return self.switch
 
     def enable_monitor_mode(self):
         try:
@@ -365,6 +305,28 @@ class ExtremeSSH:
             self.child.expect('#')
 
             for interface in self.switch_interfaces:
+                if interface != self.connected_interface:
+                    self.child.sendline('configure mirror M1 add port %s' % interface)
+                    self.child.expect('#')
+
+            self.child.sendline('enable mirror M1')
+            self.child.expect('(y/N)')
+            self.child.sendline('yes')
+            self.child.expect('#')
+            self.child.close()
+        except (pexpect.EOF, pexpect.TIMEOUT):
+            print("Connection Closed!")
+
+    def enable_monitor_mode_on_interface_range(self, interfaces):
+        try:
+            print("Enabling monitor mode...")
+            self.put_callback()
+            self.child.sendline('create mirror M1')
+            self.child.expect('#')
+            self.child.sendline('configure mirror M1 to port %s' % self.connected_interface)
+            self.child.expect('#')
+
+            for interface in interfaces:
                 if interface != self.connected_interface:
                     self.child.sendline('configure mirror M1 add port %s' % interface)
                     self.child.expect('#')

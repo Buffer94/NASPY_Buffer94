@@ -97,7 +97,7 @@ def update_callback(pkt):
 
 try:
     if mode == 'stp' or mode == 'all':
-        net_interface.wait_cdp_packet()
+        net_interface.wait_for_initial_information()
         auth = net_interface.ssh_no_credential_connection()
         if auth:
             stp_monitor.add_switch(net_interface.take_interfaces())
