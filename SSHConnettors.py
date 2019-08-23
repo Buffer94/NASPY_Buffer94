@@ -134,7 +134,7 @@ class CiscoSSH:
             self.child.expect('\(config\)#')
 
             for interface in self.switch_interfaces:
-                if interface != self.connected_interface:
+                if self.connected_interface[-3:] not in interface:
                     self.child.sendline('monitor session 1 source interface %s' % interface)
                     self.child.expect('\(config\)#')
 
@@ -154,7 +154,7 @@ class CiscoSSH:
             self.child.expect('\(config\)#')
 
             for interface in interfaces:
-                if interface != self.connected_interface:
+                if self.connected_interface[-3:] not in interface:
                     self.child.sendline('monitor session 1 source interface %s' % interface)
                     self.child.expect('\(config\)#')
 

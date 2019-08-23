@@ -54,13 +54,15 @@ if mode is None:
     print('%s \n %s' % (usage, full_usage))
     sys.exit(0)
 
+log = open('log.naspy', 'w')
+
 net_interface = NetInterface(interface, password)
 net_interface.timeout = 35
 
-stp_monitor = STPMonitor()
-arp_monitor = ArpMonitor()
-dhcp_monitor = RogueDHCPMonitor()
-dns_monitor = RogueDNSMonitor()
+stp_monitor = STPMonitor(log)
+arp_monitor = ArpMonitor(log)
+dhcp_monitor = RogueDHCPMonitor(log)
+dns_monitor = RogueDNSMonitor(log)
 
 
 def update_callback(pkt):
@@ -81,12 +83,14 @@ def update_callback(pkt):
         if pkt.highest_layer.upper() == 'DNS':
             dns_monitor.update_dns_servers(pkt)
         stp_monitor.update_switches_table(pkt)
+        stp_monitor.discover_vlan_hopping(pkt, log)
 
     if mode == 'dns' and pkt.highest_layer.upper() == 'DNS':
         dns_monitor.update_dns_servers(pkt)
 
     if mode == 'stp':
         stp_monitor.update_switches_table(pkt)
+        stp_monitor.discover_vlan_hopping(pkt, log)
 
     if mode == 'dhcp' and pkt.highest_layer.upper() == 'BOOTP':
         dhcp_monitor.update_dhcp_servers(pkt)
@@ -170,9 +174,12 @@ try:
 
             if len(topology_cng_pkg) > 0:
                 print("Found topology changes!")
+                log.write("Found topology changes!")
                 stp_monitor.discover_topology_changes(interface, password)
             else:
                 print('No changes in Topology!')
+                log.write('No changes in Topology!')
             stp_monitor.print_switches_status()
 except (KeyboardInterrupt, RuntimeError, TypeError) as e:
+    log.close()
     print("Bye!! %s" % e)

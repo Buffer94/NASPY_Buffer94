@@ -5,7 +5,6 @@ import pyshark
 from scapy.all import *
 from SSHConnettors import *
 import base64
-import os
 import json
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
@@ -146,6 +145,10 @@ class NetInterface:
         arp_request = Ether(dst=broad_mac)/ARP(pdst=subnet_ip)
 
         sendp(arp_request, verbose=False, iface=self.interface, inter=0.5)
+
+    def send_dtp_packet(self):
+        load_contrib('dtp')
+
 
     def send_dns_request(self):
         print('sending DNS Request...')
