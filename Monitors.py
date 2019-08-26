@@ -51,7 +51,7 @@ class RogueDHCPMonitor:
 
     def print_to_log(self, msg):
         if self.log.closed:
-            self.log = open('logfile.txt', 'a')
+            self.log = open('log.naspy', 'a')
         self.log.write('%s \n' % msg)
 
 
@@ -94,7 +94,7 @@ class RogueDNSMonitor:
 
     def print_to_log(self, msg):
         if self.log.closed:
-            self.log = open('logfile.txt', 'a')
+            self.log = open('log.naspy', 'a')
         self.log.write('%s \n' % msg)
 
 
@@ -210,7 +210,7 @@ class ArpMonitor:
 
     def print_to_log(self, msg):
         if self.log.closed:
-            self.log = open('logfile.txt', 'a')
+            self.log = open('log.naspy', 'a')
         self.log.write('%s \n' % msg)
 
 
@@ -685,5 +685,5 @@ class STPMonitor:
 
     def print_to_log(self, msg):
         if self.log.closed:
-            self.log = open('logfile.txt', 'a')
+            self.log = open('log.naspy', 'a')
         self.log.write('%s \n' % msg)

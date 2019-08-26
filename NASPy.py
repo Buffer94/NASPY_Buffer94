@@ -122,7 +122,7 @@ try:
 
     while True:
         if log.closed:
-            log = open('logfile.txt', 'a')
+            log = open('log.naspy', 'a')
         time.sleep(30)
 
         if mode == 'dhcp' or mode == 'all':
