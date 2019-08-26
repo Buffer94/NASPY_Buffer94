@@ -8,10 +8,10 @@ class DHCPServer:
         self.mac_address = mac_address
         self.subnet = subnet
 
-    def print_info(self, log):
+    def print_info(self):
         msg = 'Ip Address: %s MAC address: %s Subnet %s' % (self.ip_address, self.mac_address, self.subnet)
         print(msg)
-        log.write(msg)
+        return msg
 
     def set_ip_address(self, ip_address):
         self.ip_address = ip_address
@@ -26,10 +26,10 @@ class DNSServer:
         self.ip_address = ip_address
         self.mac_address = mac_address
 
-    def print_info(self, log):
+    def print_info(self):
         msg = 'Ip Address: %s MAC address: %s' % (self.ip_address, self.mac_address)
         print(msg)
-        log.write(msg)
+        return msg
 
     def set_ip_address(self, ip_address):
         self.ip_address = ip_address
@@ -120,23 +120,24 @@ class SpanningTreeInstance:
                 return True
         return False
 
-    def print_stp_status(self, log):
+    def print_stp_status(self):
+        msg = "Spanning Tree on Vlan: %s\n" % self.vlan_id
         print("Spanning Tree on Vlan: %s" % self.vlan_id)
-        log.write("Spanning Tree on Vlan: %s" % self.vlan_id)
         print("  Root Bridge: %s - Bridge: %s - Priority: %s" % (self.root_bridge_id, self.bridge_id, self.priority))
-        log.write("  Root Bridge: %s - Bridge: %s - Priority: %s" % (self.root_bridge_id, self.bridge_id, self.priority))
+        msg += "   Root Bridge: %s - Bridge: %s - Priority: %s \n" % (self.root_bridge_id, self.bridge_id, self.priority)
         if self.root_bridge:
             print("  This switch is the Root Bridge")
-            log.write("  This switch is the Root Bridge")
+            msg += "  This switch is the Root Bridge\n"
         print("  Recents Topology Change: %s" % self.tc_counter)
-        log.write("  Recents Topology Change: %s" % self.tc_counter)
+        msg += "  Recents Topology Change: %s\n" % self.tc_counter
         for port in self.ports:
             print("\tPort: %s - Address: %s, Status: %s - #Rec_CNG: %s" % (port.name, port.MAC,
                                                                            port.pvlan_status[self.vlan_id],
                                                                            port.pvlan_status_change_counter[self.vlan_id]))
-            log.write("\tPort: %s - Address: %s, Status: %s - #Rec_CNG: %s" % (port.name, port.MAC,
+            msg += "\tPort: %s - Address: %s, Status: %s - #Rec_CNG: %s\n" % (port.name, port.MAC,
                                                                                port.pvlan_status[self.vlan_id],
-                                                                               port.pvlan_status_change_counter[self.vlan_id]))
+                                                                               port.pvlan_status_change_counter[self.vlan_id])
+        return msg
 
 
 class Switch:
@@ -186,26 +187,30 @@ class Switch:
                 self.add_port_to_spanning_tree(vlan_id, port, priority, b_id)
                 port.set_port_as_root(vlan_id, override, initialization)
 
-    def print_spanning_tree(self, log):
+    def print_spanning_tree(self):
+        msg = ''
         for vlan_id in self.spanning_tree_instances:
             self.spanning_tree_instances[vlan_id].ports.sort(key=self.take_MAC)
-            self.spanning_tree_instances[vlan_id].print_stp_status(log)
+            msg += '%s \n' % self.spanning_tree_instances[vlan_id].print_stp_status()
+        return msg
 
-    def print_trunk_ports(self, log):
+    def print_trunk_ports(self):
+        out_msg = 'Trunk Ports:\n'
         print("Trunk Ports:")
         there_is_trunks = False
         for port in self.ports:
             if port.trunk:
                 there_is_trunks = True
                 msg = "Port %s - vlans: %s" % (port.name, port.print_vlans())
+                out_msg += '%s \n' % msg
                 print(msg)
-                log.write(msg)
 
         if not there_is_trunks:
             print("In this switch there are not Trunk Ports!")
-            log.write("In this switch there are not Trunk Ports!")
+            out_msg += 'In this switch there are not Trunk Ports!\n'
         else:
             print('')
+        return out_msg
 
     @staticmethod
     def take_MAC(port):

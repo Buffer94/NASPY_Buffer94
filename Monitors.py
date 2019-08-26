@@ -30,23 +30,29 @@ class RogueDHCPMonitor:
                     new_dhcp_server = DHCPServer(pkt_ip, pkt_mac, subnet)
                     self.dhcp_servers.append(new_dhcp_server)
                     print("New DHCP Server discovered")
-                    self.log.write('New DHCP Server discovered')
-                    new_dhcp_server.print_info(self.log)
+                    self.print_to_log('New DHCP Server discovered')
+                    self.print_to_log(new_dhcp_server.print_info())
             else:
                 new_dhcp_server = DHCPServer(pkt_ip, pkt_mac, subnet)
                 print("New DHCP Server discovered")
-                self.log.write('New DHCP Server discovered')
-                new_dhcp_server.print_info(self.log)
+                self.print_to_log('New DHCP Server discovered')
+                self.print_to_log(new_dhcp_server.print_info())
                 self.dhcp_servers.append(new_dhcp_server)
 
     def print_dhcp_servers(self):
         if len(self.dhcp_servers) > 0:
             print("DHCP Servers on the network:")
-            self.log.write('DHCP Servers on the network:')
+            self.print_to_log('DHCP Servers on the network:')
             for dhcp_server in self.dhcp_servers:
-                dhcp_server.print_info(self.log)
+                self.print_to_log(dhcp_server.print_info())
         else:
-            print("No DHCP Servers found!")
+            print('No DHCP Servers found!')
+            self.print_to_log('No DHCP Servers found!')
+
+    def print_to_log(self, msg):
+        if self.log.closed:
+            self.log = open('logfile.txt', 'a')
+        self.log.write('%s \n' % msg)
 
 
 class RogueDNSMonitor:
@@ -68,13 +74,14 @@ class RogueDNSMonitor:
                     new_dns_server = DNSServer(server_ip, server_mac)
                     self.dns_servers.append(new_dns_server)
                     print("New DNS Server Discovered")
-                    self.log.write('New DNS Server discovered')
-                    new_dns_server.print_info(self.log)
+                    self.print_to_log('New DNS Server discovered')
+                    self.print_to_log(new_dns_server.print_info())
             else:
                 new_dns_server = DNSServer(server_ip, server_mac)
                 self.dns_servers.append(new_dns_server)
                 print("New DNS Server Discovered")
-                new_dns_server.print_info(self.log)
+                self.print_to_log('New DNS Server discovered')
+                self.print_to_log(new_dns_server.print_info())
 
     def print_dns_servers(self):
         if len(self.dns_servers) > 0:
@@ -83,7 +90,12 @@ class RogueDNSMonitor:
                 dns_server.print_info(self.log)
         else:
             print("No DNS Servers found!")
-            self.log.write('No DNS Servers found!')
+            self.print_to_log('No DNS Servers found!')
+
+    def print_to_log(self, msg):
+        if self.log.closed:
+            self.log = open('logfile.txt', 'a')
+        self.log.write('%s \n' % msg)
 
 
 class ArpMonitor:
@@ -159,8 +171,8 @@ class ArpMonitor:
         for ip in macs:
             if len(macs[ip]) > 1:
                 msg = "Conflict Found, duplicate IP address: %s with this MACs: %s" % (ip, str(macs[ip])[1:-1])
+                self.print_to_log(msg)
                 print(msg)
-                self.log.write(msg)
 
     def check_mac_duplicate(self):
         ips = dict()
@@ -181,20 +193,25 @@ class ArpMonitor:
         for mac in ips:
             if len(ips[mac]) > 1:
                 msg = "Conflict Found, duplicate MAC address: %s with this IPs: %s" % (mac, str(ips[mac])[1:-1])
+                self.print_to_log(msg)
                 print(msg)
-                self.log.write(msg)
 
     def print_ip_arp_table(self):
         print("Arp Table:")
-        self.log.write("Arp Table:")
+        self.print_to_log("Arp Table:")
         for ip in self.ip_arp_table:
             msg = "IP %s - MAC: %s" % (ip, str(self.ip_arp_table[ip])[1:-1])
+            self.print_to_log(msg)
             print(msg)
-            self.log.write(msg)
 
     def print_mac_arp_table(self):
         for mac in self.mac_arp_table:
             print("MAC: %s - IP: %s" % (mac, str(self.mac_arp_table[mac])[1:-1]))
+
+    def print_to_log(self, msg):
+        if self.log.closed:
+            self.log = open('logfile.txt', 'a')
+        self.log.write('%s \n' % msg)
 
 
 class STPMonitor:
@@ -251,7 +268,6 @@ class STPMonitor:
 
                     if pkt.stp.bridge_ext == '0' and pkt.stp.root_ext == '0':
                         vlan_id = 0
-                        print(sender_mac)
                         if switch.contains(sender_mac):
                             port = switch.get_port(sender_mac)
                             if not port.trunk and len(port.get_vlan()) > 0:
@@ -295,7 +311,7 @@ class STPMonitor:
 
                         if switch.contains(sender_mac):
                             print("port %s is trunk" % sender_mac)
-                            self.log.write("port %s is trunk" % sender_mac)
+                            self.print_to_log("port %s is trunk" % sender_mac)
                             switch.get_port(sender_mac).trunk = True
 
     @staticmethod
@@ -324,7 +340,9 @@ class STPMonitor:
                         vlans.append(layer.id)
                 msg = "Alert, packet with DOUBLE 802.1Q TAGGING found! send from %s with this vlan tagged: %s" % (pkt.eth.src, vlans)
                 print(msg)
-                log.write(msg)
+                if log.closed:
+                    log.open('log.naspy', 'a')
+                log.write('%s\n' % msg)
 
     def discover_topology_changes(self, my_host_interface, password):
         net_interface = NetInterface(my_host_interface, password)
@@ -341,6 +359,7 @@ class STPMonitor:
                 try:
                     tc_capture.apply_on_packets(self.tc_pkt_callback, timeout=net_interface.timeout)
                 except concurrent.futures.TimeoutError:
+                    tc_capture.close()
                     print('Capture finished!')
                 bridge_id_min = dict()
                 root_port = dict()
@@ -391,6 +410,7 @@ class STPMonitor:
                                                             priority=pkt.stp.root_prio, b_id=pkt.stp.root_hw)
                                 bridge_id_min[vlan], root_port[vlan], blocked_port[vlan] = self.get_min_bridge_id(pkt, bridge_id_min[vlan], port.MAC,
                                                                                                                   root_port[vlan], blocked_port[vlan])
+                        port_capture.close()
             if switch.connected_interface is not None:
                 for vlan_id in switch.get_vlans():
                     if root_port[vlan_id] is not None:
@@ -401,7 +421,7 @@ class STPMonitor:
                                                                                                          vlan_id,
                                                                                                          port.pvlan_status[vlan_id])
                                     print(msg)
-                                    self.log(msg)
+                                    self.print_to_log(msg)
                                     switch.increase_port_tc_counter(vlan_id, port.MAC)
                                     switch.set_root_port(root_port[vlan_id], vlan_id, override=True)
                             else:
@@ -409,7 +429,7 @@ class STPMonitor:
                                     if port.pvlan_status[vlan_id] != "Blocked":
                                         msg = "Port %s has switch his state on vlan %s - From %s to Blocked" % (port.name, vlan_id, port.pvlan_status[vlan_id])
                                         print(msg)
-                                        self.log(msg)
+                                        self.print_to_log(msg)
                                         switch.increase_port_tc_counter(vlan_id, port.MAC)
                                     switch.set_blocked_port(blocked_port[vlan_id], vlan_id, override=True)
                                 else:
@@ -440,7 +460,7 @@ class STPMonitor:
                                                                                                   old_prio,
                                                                                                   pkt.stp.bridge_prio)
                             print(msg)
-                            self.log.write(msg)
+                            self.print_to_log(msg)
                             switch.set_stp_priority(pkt_vlan_id, pkt.stp.bridge_prio)
                             self.switch_baseline[pkt_vlan_id].priority = int(pkt.stp.bridge_prio) + int(pkt_vlan_id)
                             tc_change = True
@@ -449,7 +469,7 @@ class STPMonitor:
                         if pkt_root_id != old_root_bridge:
                             msg = "Root Bridge Change! the new RB of vlan %s is %s" % (pkt_vlan_id, pkt_root_id)
                             print(msg)
-                            self.log.write(msg)
+                            self.print_to_log(msg)
                             switch.set_stp_root_id(pkt_vlan_id, pkt_root_id)
                             self.switch_baseline[pkt_vlan_id].root_bridge_id = pkt_root_id
                             tc_change = True
@@ -459,7 +479,7 @@ class STPMonitor:
                             if port_status != "Designated":
                                 msg = "Port %s on vlan %s has switched his state from %s to Designated" % (port.name, pkt_vlan_id, port_status)
                                 print(msg)
-                                self.log.write(msg)
+                                self.print_to_log(msg)
                                 switch.set_designated_port(sender_mac, pkt_vlan_id, override=True)
                                 switch.increase_port_tc_counter(pkt_vlan_id, sender_mac)
                             for bport in self.switch_baseline[pkt_vlan_id].ports:
@@ -472,7 +492,7 @@ class STPMonitor:
                         if pkt_vlan_id not in port.pvlan_status:
                             msg = "New vlan (%s) has added at this trunk port %s" % (pkt_vlan_id, port.name)
                             print(msg)
-                            self.log.write(msg)
+                            self.print_to_log(msg)
                             switch.set_designated_port(sender_mac, pkt_vlan_id, priority=pkt.stp.root_prio, b_id=pkt_root_id)
         else:
             sender_mac = pkt.eth.src
@@ -482,7 +502,7 @@ class STPMonitor:
                     if switch.contains(sender_mac) and not switch.get_port(sender_mac).trunk:
                         msg = "port %s is now trunk!" % sender_mac
                         print(msg)
-                        self.log.write(msg)
+                        self.print_to_log(msg)
                         switch.get_port(sender_mac).trunk = True
                         for vlan in self.switch_baseline:
                             for port in self.switch_baseline[vlan].ports:
@@ -494,7 +514,7 @@ class STPMonitor:
                         if switch.contains(sender_mac) and switch.get_port(sender_mac).trunk:
                             msg = "port %s is not trunk anymore!" % sender_mac
                             print(msg)
-                            self.log.write(msg)
+                            self.print_to_log(msg)
                             switch.get_port(sender_mac).trunk = False
                             for vlan in self.switch_baseline:
                                 for port in self.switch_baseline[vlan].ports:
@@ -573,7 +593,7 @@ class STPMonitor:
                                                                                                   bridge_id_min[vlan],
                                                                                                   port.MAC,
                                                                                                   root_port[vlan])
-
+                    port_capture.close()
                 for vlan_id in switch.get_vlans():
                     if root_port[vlan_id] is not None:
                         switch.set_root_port(root_port[vlan_id], vlan_id, override=True)
@@ -631,6 +651,7 @@ class STPMonitor:
             port_capture = pyshark.LiveCapture(interface=my_host_interface, display_filter="stp")
             port_capture.sniff(packet_count=1)
             pkt = port_capture[0]
+            port_capture.close()
             vlan = pkt.stp.root_ext if pkt.stp.bridge_ext == '0' else pkt.stp.bridge_ext
 
             if pkt.eth.src == pkt.stp.bridge_hw and pkt.stp.port != '0x00008001':
@@ -647,8 +668,8 @@ class STPMonitor:
     def print_switches_status(self):
         for switch in self.switches_table:
             print("\nSwitch %s:" % switch.name)
-            switch.print_spanning_tree(self.log)
-            switch.print_trunk_ports(self.log)
+            self.print_to_log(switch.print_spanning_tree())
+            self.print_to_log(switch.print_trunk_ports())
 
     def get_switch(self, switch_id):
         for switch in self.switches_table:
@@ -661,3 +682,8 @@ class STPMonitor:
             if port.MAC == p.MAC:
                 return True
         return False
+
+    def print_to_log(self, msg):
+        if self.log.closed:
+            self.log = open('logfile.txt', 'a')
+        self.log.write('%s \n' % msg)

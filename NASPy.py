@@ -1,7 +1,6 @@
 from NetInterface import *
 from Monitors import *
 import sys
-import asyncio
 
 usage = "Usage: -i [interface], [-m [mode]], [-p [password]], [-h [help]]"
 full_usage = "mode options: \n" \
@@ -12,7 +11,7 @@ full_usage = "mode options: \n" \
              "default: When no other options are chosen this script will perform all modality\n" \
              "password: is the password use for decrypting switch credentials"
 
-print ("Welcome to NASPy --Buffer94_Module--")
+print("Welcome to NASPy --Buffer94_Module--")
 
 if len(sys.argv) < 3:
     print("Error, you must enter an Interface name and a modality")
@@ -55,6 +54,7 @@ if mode is None:
     sys.exit(0)
 
 log = open('log.naspy', 'w')
+log.write("NASPY -- Buffer94\n")
 
 net_interface = NetInterface(interface, password)
 net_interface.timeout = 35
@@ -108,10 +108,11 @@ try:
             net_interface.enable_monitor_mode()
 
         print('start sniffing...')
-        net_interface.capture = pyshark.LiveCapture(interface=net_interface.interface)
+        capture = pyshark.LiveCapture(interface=net_interface.interface)
         try:
-            net_interface.capture.apply_on_packets(update_callback, timeout=net_interface.timeout)
+            capture.apply_on_packets(update_callback, timeout=net_interface.timeout)
         except concurrent.futures.TimeoutError:
+            capture.close()
             print('Capture finished!')
 
         stp_monitor.set_connected_interface_status(interface)
@@ -120,6 +121,8 @@ try:
         stp_monitor.print_switches_status()
 
     while True:
+        if log.closed:
+            log = open('logfile.txt', 'a')
         time.sleep(30)
 
         if mode == 'dhcp' or mode == 'all':
@@ -157,10 +160,11 @@ try:
             threading.Thread(target=async_arp_watch).start()
 
         print('start sniffing...')
-        net_interface.capture = pyshark.LiveCapture(interface=net_interface.interface)
+        capture = pyshark.LiveCapture(interface=net_interface.interface)
         try:
-            net_interface.capture.apply_on_packets(update_callback, timeout=net_interface.timeout)
+            capture.apply_on_packets(update_callback, timeout=net_interface.timeout)
         except concurrent.futures.TimeoutError:
+            capture.close()
             print('Capture finished!')
 
         dhcp_monitor.print_dhcp_servers()
@@ -170,7 +174,7 @@ try:
             time.sleep(stp_monitor.waiting_timer)
             print("Finding topology changes...")
             topology_cng_pkg = pyshark.LiveCapture(interface=interface, display_filter="stp.flags.tc == 1")
-            topology_cng_pkg.sniff(packet_count=1, timeout=300)
+            topology_cng_pkg.sniff(packet_count=1, timeout=180)
 
             if len(topology_cng_pkg) > 0:
                 print("Found topology changes!")
@@ -179,7 +183,9 @@ try:
             else:
                 print('No changes in Topology!')
                 log.write('No changes in Topology!')
+            topology_cng_pkg.close()
             stp_monitor.print_switches_status()
+        log.close()
 except (KeyboardInterrupt, RuntimeError, TypeError) as e:
     log.close()
     print("Bye!! %s" % e)

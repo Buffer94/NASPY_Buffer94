@@ -20,7 +20,6 @@ class NetInterface:
         self.switch_ip = None
         self.switch_interface = None
         self.switch_MAC = None
-        self.capture = None
         self.ssh = None
         self.password = password
         self.kdf = PBKDF2HMAC(
@@ -54,6 +53,7 @@ class NetInterface:
                     self.switch_MAC = pkt.eth.src
                 self.switch_interface = pkt.lldp.port_id
 
+        sniff.eventloop.close()
         print("initial configurations done!")
 
     def ssh_connection(self):
