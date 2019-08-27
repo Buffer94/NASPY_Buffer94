@@ -13,6 +13,10 @@ full_usage = "mode options: \n" \
 
 print("Welcome to NASPy --Buffer94_Module--")
 
+if os.geteuid() != 0:
+    print("YOu need to run as root!")
+    sys.exit(0)
+
 if len(sys.argv) < 3:
     print("Error, you must enter an Interface name and a modality")
     print(usage)
@@ -171,6 +175,7 @@ try:
         arp_monitor.print_ip_arp_table()
 
         if mode == 'stp' or mode == 'all':
+            stp_monitor.discover_switch_spoofing(net_interface.send_dtp_packet())
             time.sleep(stp_monitor.waiting_timer)
             print("Finding topology changes...")
             topology_cng_pkg = pyshark.LiveCapture(interface=interface, display_filter="stp.flags.tc == 1")
@@ -183,9 +188,8 @@ try:
             else:
                 print('No changes in Topology!')
                 log.write('No changes in Topology!')
-            topology_cng_pkg.close()
             stp_monitor.print_switches_status()
         log.close()
 except (KeyboardInterrupt, RuntimeError, TypeError) as e:
     log.close()
-    print("Bye!! %s" % e)
+    print("Bye!!")

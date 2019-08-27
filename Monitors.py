@@ -1,3 +1,5 @@
+from builtins import print
+
 from NetworkElements import *
 from NetInterface import *
 import time
@@ -131,7 +133,8 @@ class ArpMonitor:
         if target_mac != '00:00:00:00:00:00' and target_mac != 'ff:ff:ff:ff:ff:ff' and target_ip != '0.0.0.0':
             self.add_entry(target_ip, target_mac, target_vlan_id)
 
-        self.add_entry(sender_ip, sender_mac, sender_vlan_id)
+        if sender_mac != '00:00:00:00:00:00' and sender_mac != 'ff:ff:ff:ff:ff:ff':
+            self.add_entry(sender_ip, sender_mac, sender_vlan_id)
 
     def add_entry(self, ip, mac, vlan_id):
         if ip in self.ip_arp_table:
@@ -343,6 +346,16 @@ class STPMonitor:
                 if log.closed:
                     log.open('log.naspy', 'a')
                 log.write('%s\n' % msg)
+
+    def discover_switch_spoofing(self, pkt):
+        if pkt[3].name == 'DTP' and pkt[3].tlvlist[1].status == b'\x84':
+            for switch in self.switches_table:
+                if switch.contains(pkt.src):
+                    port_name = switch.get_port(pkt.src).name
+                    switch.get_port(pkt.src).negotiation = True
+                    msg = "Alert, interface %s on switch %s has trunk negotiation enabled!" % (port_name, switch.name)
+                    print(msg)
+                    self.log.write(msg)
 
     def discover_topology_changes(self, my_host_interface, password):
         net_interface = NetInterface(my_host_interface, password)

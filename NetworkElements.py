@@ -206,7 +206,7 @@ class Switch:
                 print(msg)
 
         if not there_is_trunks:
-            print("In this switch there are not Trunk Ports!")
+            print("In this switch there are not Trunk Ports!\n")
             out_msg += 'In this switch there are not Trunk Ports!\n'
         else:
             print('')
@@ -294,6 +294,7 @@ class Port:
         self.pvlan_status = dict()
         self.pvlan_status_change_counter = dict()
         self.trunk = False
+        self.negotiation = False
 
     def set_port_as_designated(self, vlan_id=1, override=False, initialization=False):
         if len(self.pvlan_status) > 0 and vlan_id not in self.pvlan_status and not self.trunk:
