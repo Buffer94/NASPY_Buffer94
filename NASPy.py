@@ -14,7 +14,7 @@ full_usage = "mode options: \n" \
 print("Welcome to NASPy --Buffer94_Module--")
 
 if os.geteuid() != 0:
-    print("YOu need to run as root!")
+    print("You need to run as root!")
     sys.exit(0)
 
 if len(sys.argv) < 3:
