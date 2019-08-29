@@ -372,6 +372,14 @@ class STPMonitor:
                         msg = "Alert, interface %s on switch %s allow trunk negotiation!" % (port_name, switch.name)
                         print(msg)
                         self.log.write(msg)
+            else:
+                for switch in self.switches_table:
+                    if switch.contains(src) and switch.get_port(src).negotiation:
+                        port_name = switch.get_port(src).name
+                        switch.get_port(src).negotiation = False
+                        msg = "Interface %s on switch %s no longer allow trunk negotiation!" % (port_name, switch.name)
+                        print(msg)
+                        self.log.write(msg)
 
     def discover_topology_changes(self, my_host_interface, password):
         net_interface = NetInterface(my_host_interface, password)
