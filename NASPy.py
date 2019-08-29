@@ -189,7 +189,7 @@ try:
             topology_cng_pkg = pyshark.LiveCapture(interface=interface, display_filter="stp.flags.tc == 1")
             topology_cng_pkg.sniff(packet_count=1, timeout=180)
 
-            if len(topology_cng_pkg) > 0:
+            if topology_cng_pkg:
                 print("Found topology changes!")
                 log.write("%s - Found topology changes!\n" % datetime.now().strftime("%H:%M:%S"))
                 stp_monitor.discover_topology_changes(interface, password)
