@@ -69,8 +69,10 @@ daily_body_message = "Hi,\n This is the daily report sent every day at 00:00!"
 net_interface = NetInterface(interface, password)
 net_interface.timeout = 35
 
+email_receiver = 'abaffa94@gmail.com'
+
 stp_monitor = STPMonitor(log)
-arp_monitor = ArpMonitor(log)
+arp_monitor = ArpMonitor(log, email_receiver)
 dhcp_monitor = RogueDHCPMonitor(log)
 dns_monitor = RogueDNSMonitor(log)
 
@@ -196,7 +198,7 @@ try:
                 time.sleep(stp_monitor.waiting_timer)
                 print("Sending log by email")
                 sender = LogSender()
-                sender.send('abaffa94@gmail.com', tc_body_message, 'Topology Change Report!', 'log.naspy', 'filename')
+                sender.send(email_receiver, tc_body_message, 'Topology Change Report!', 'log.naspy', 'filename')
             else:
                 print('No changes in Topology!')
                 log.write('%s - No changes in Topology!\n' % datetime.now().strftime("%H:%M:%S"))
@@ -205,7 +207,7 @@ try:
         current_time = datetime.now().strftime("%H:%M")
         if current_time == "00:00":
             sender = LogSender()
-            sender.send('abaffa94@gmail.com', daily_body_message, 'Daily Report!', 'log.naspy', 'filename')
+            sender.send(email_receiver, daily_body_message, 'Daily Report!', 'log.naspy', 'filename')
 except (KeyboardInterrupt, RuntimeError, TypeError):
     log.close()
     print("Bye!!")

@@ -103,10 +103,11 @@ class RogueDNSMonitor:
 
 class ArpMonitor:
 
-    def __init__(self, log):
+    def __init__(self, log, email_receiver):
         self.ip_arp_table = dict()
         self.mac_arp_table = dict()
         self.log = log
+        self.email_receiver = email_receiver
 
     def update_arp_table(self, pkt, sender_port=None, target_port=None):
         sender_mac = pkt.arp.src_hw_mac
@@ -202,7 +203,7 @@ class ArpMonitor:
 
     def send_alert_email(self, msg):
         sender = LogSender()
-        sender.send('abaffa94@gmail.com', '%s - %s' % (datetime.now().strftime('%H:%M:%S'), msg),
+        sender.send(self.email_receiver, '%s - %s' % (datetime.now().strftime('%H:%M:%S'), msg),
                     'Alert, security issue detected!', self.get_ip_arp_table_string(), 'text')
 
     def print_ip_arp_table(self):
