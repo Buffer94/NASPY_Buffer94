@@ -200,6 +200,5 @@ class NetInterface:
     def read_vendors():
         file = open('mac_vendor.naspy')
         vendors = eval(file.read())
-        vendors['0c:55:17'] = 'Cisco' #DEBUG Purposes
         file.close()
         return vendors
