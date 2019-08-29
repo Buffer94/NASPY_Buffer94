@@ -1,5 +1,7 @@
 from NetInterface import *
 from Monitors import *
+from LogSender import LogSender
+from datetime import datetime
 import sys
 
 usage = "Usage: -i [interface], [-m [mode]], [-p [password]], [-h [help]]"
@@ -59,6 +61,10 @@ if mode is None:
 
 log = open('log.naspy', 'w')
 log.write("NASPY -- Buffer94\n")
+
+tc_body_message = "Hi,\n You are receiving this report because there was a Topology Change " \
+                  "in the topology, please check it!"
+daily_body_message = "Hi,\n This is the daily report sent every day at 00:00!"
 
 net_interface = NetInterface(interface, password)
 net_interface.timeout = 35
@@ -183,13 +189,24 @@ try:
 
             if len(topology_cng_pkg) > 0:
                 print("Found topology changes!")
-                log.write("Found topology changes!")
+                log.write("%s - Found topology changes!\n" % datetime.now().strftime("%H:%M:%S"))
                 stp_monitor.discover_topology_changes(interface, password)
+                log.close()
+                stp_monitor.print_switches_status()
+                time.sleep(stp_monitor.waiting_timer)
+                print("Sending log by email")
+                sender = LogSender()
+                sender.send('abaffa94@gmail.com', tc_body_message, 'Topology Change Report!', 'log.naspy', 'filename')
             else:
                 print('No changes in Topology!')
-                log.write('No changes in Topology!')
-            stp_monitor.print_switches_status()
+                log.write('%s - No changes in Topology!\n' % datetime.now().strftime("%H:%M:%S"))
+                stp_monitor.print_switches_status()
         log.close()
-except (KeyboardInterrupt, RuntimeError, TypeError) as e:
+        current_time = datetime.now().strftime("%H:%M")
+        if current_time == "00:00":
+            sender = LogSender()
+            sender.send('abaffa94@gmail.com', daily_body_message, 'Daily Report!', 'log.naspy', 'filename')
+except (KeyboardInterrupt, RuntimeError, TypeError):
     log.close()
     print("Bye!!")
+

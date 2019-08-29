@@ -2,6 +2,7 @@ from builtins import print
 
 from NetworkElements import *
 from NetInterface import *
+from LogSender import LogSender
 import time
 import copy
 import concurrent
@@ -54,7 +55,7 @@ class RogueDHCPMonitor:
     def print_to_log(self, msg):
         if self.log.closed:
             self.log = open('log.naspy', 'a')
-        self.log.write('%s \n' % msg)
+        self.log.write('%s - %s \n' % (datetime.now().strftime("%H:%M:%S"), msg))
 
 
 class RogueDNSMonitor:
@@ -68,7 +69,7 @@ class RogueDNSMonitor:
             server_ip = pkt.ip.src
             server_mac = pkt.eth.src
 
-            if len(self.dns_servers) > 1:
+            if len(self.dns_servers) > 0:
                 for dns_server in self.dns_servers:
                     if dns_server.equals(server_mac):
                         found = True
@@ -97,7 +98,7 @@ class RogueDNSMonitor:
     def print_to_log(self, msg):
         if self.log.closed:
             self.log = open('log.naspy', 'a')
-        self.log.write('%s \n' % msg)
+        self.log.write('%s - %s \n' % (datetime.now().strftime("%H:%M:%S"), msg))
 
 
 class ArpMonitor:
@@ -123,12 +124,10 @@ class ArpMonitor:
             if sender_port is not None:
                 if not sender_port.trunk:
                     sender_vlan_id = sender_port.pvlan_status[0]
-                    print("Sender port %s - vlan: %s" % (sender_port.MAC, sender_vlan_id))
 
             if target_port is not None:
                 if not target_port.trunk:
                     target_vlan_id = target_port.pvlan_status[0]
-                    print("Sender port %s - vlan: %s" % (target_port.MAC, target_vlan_id))
 
         if target_mac != '00:00:00:00:00:00' and target_mac != 'ff:ff:ff:ff:ff:ff' and target_ip != '0.0.0.0':
             self.add_entry(target_ip, target_mac, target_vlan_id)
@@ -174,6 +173,7 @@ class ArpMonitor:
         for ip in macs:
             if len(macs[ip]) > 1:
                 msg = "Conflict Found, duplicate IP address: %s with this MACs: %s" % (ip, str(macs[ip])[1:-1])
+                self.send_alert_email(msg)
                 self.print_to_log(msg)
                 print(msg)
 
@@ -196,16 +196,28 @@ class ArpMonitor:
         for mac in ips:
             if len(ips[mac]) > 1:
                 msg = "Conflict Found, duplicate MAC address: %s with this IPs: %s" % (mac, str(ips[mac])[1:-1])
+                self.send_alert_email(msg)
                 self.print_to_log(msg)
                 print(msg)
 
+    def send_alert_email(self, msg):
+        sender = LogSender()
+        sender.send('abaffa94@gmail.com', '%s - %s' % (datetime.now().strftime('%H:%M:%S'), msg),
+                    'Alert, security issue detected!', self.get_ip_arp_table_string(), 'text')
+
     def print_ip_arp_table(self):
-        print("Arp Table:")
+        print("%s - Arp Table:" % datetime.now().strftime("%H:%M:%S"))
         self.print_to_log("Arp Table:")
         for ip in self.ip_arp_table:
             msg = "IP %s - MAC: %s" % (ip, str(self.ip_arp_table[ip])[1:-1])
             self.print_to_log(msg)
             print(msg)
+
+    def get_ip_arp_table_string(self):
+        msg = "Arp Table:"
+        for ip in self.ip_arp_table:
+            msg += "IP %s - MAC: %s" % (ip, str(self.ip_arp_table[ip])[1:-1])
+        return msg
 
     def print_mac_arp_table(self):
         for mac in self.mac_arp_table:
@@ -214,7 +226,7 @@ class ArpMonitor:
     def print_to_log(self, msg):
         if self.log.closed:
             self.log = open('log.naspy', 'a')
-        self.log.write('%s \n' % msg)
+        self.log.write('%s - %s \n' % (datetime.now().strftime("%H:%M:%S"), msg))
 
 
 class STPMonitor:
@@ -353,7 +365,7 @@ class STPMonitor:
                 if switch.contains(pkt.src):
                     port_name = switch.get_port(pkt.src).name
                     switch.get_port(pkt.src).negotiation = True
-                    msg = "Alert, interface %s on switch %s has trunk negotiation enabled!" % (port_name, switch.name)
+                    msg = "Alert, interface %s on switch %s allow trunk negotiation!" % (port_name, switch.name)
                     print(msg)
                     self.log.write(msg)
 
@@ -451,7 +463,7 @@ class STPMonitor:
                                         switch.remove_port_from_stp(vlan_id, port)
 
     def tc_pkt_callback(self, pkt):
-        self.discover_vlan_hopping(pkt)
+        self.discover_vlan_hopping(pkt, self.log)
         if pkt.highest_layer.upper() == 'STP':
             if pkt.eth.src == pkt.stp.bridge_ext and pkt.stp.port != '0x00008001':
                 sender_mac = self.calculate_sender_mac(pkt.eth.src, pkt.stp.port)
@@ -468,14 +480,15 @@ class STPMonitor:
                         #PRIORITY CHANGE
                         old_prio = self.switch_baseline[pkt_vlan_id].priority
                         tc_change = False
-                        if int(pkt_vlan_id) + int(pkt.stp.bridge_prio) != old_prio:
-                            msg = "Bridge (%s) priority on vlan %s is changed from %s to %s!!" % (pkt_bridge_id, pkt_vlan_id,
+                        if int(pkt_vlan_id) + int(pkt.stp.root_prio) != old_prio:
+                            msg = "Bridge (%s) priority on vlan %s is changed from %s to %s!!" % (pkt_bridge_id,
+                                                                                                  pkt_vlan_id,
                                                                                                   old_prio,
-                                                                                                  pkt.stp.bridge_prio)
+                                                                                                  int(pkt_vlan_id) + int(pkt.stp.root_prio))
                             print(msg)
                             self.print_to_log(msg)
-                            switch.set_stp_priority(pkt_vlan_id, pkt.stp.bridge_prio)
-                            self.switch_baseline[pkt_vlan_id].priority = int(pkt.stp.bridge_prio) + int(pkt_vlan_id)
+                            switch.set_stp_priority(pkt_vlan_id, pkt.stp.root_prio)
+                            self.switch_baseline[pkt_vlan_id].priority = int(pkt.stp.root_prio) + int(pkt_vlan_id)
                             tc_change = True
                         #ROOT BRIDGE CHANGE
                         old_root_bridge = self.switch_baseline[pkt_vlan_id].root_bridge_id
@@ -699,4 +712,4 @@ class STPMonitor:
     def print_to_log(self, msg):
         if self.log.closed:
             self.log = open('log.naspy', 'a')
-        self.log.write('%s \n' % msg)
+        self.log.write('%s - \n%s \n' % (datetime.now().strftime("%H:%M:%S"), msg))
