@@ -321,6 +321,7 @@ class STPMonitor:
 
         else:
             if pkt.highest_layer.upper() == 'DTP':
+                self.discover_switch_spoofing(pkt)
                 if pkt.dtp.tas == '0x00000001' or pkt.dtp.tos == '0x00000001':
                     for switch in self.switches_table:
                         sender_mac = pkt.eth.src
@@ -361,14 +362,16 @@ class STPMonitor:
                 log.write('%s\n' % msg)
 
     def discover_switch_spoofing(self, pkt):
-        if pkt is not None and pkt[3].name == 'DTP' and pkt[3].tlvlist[1].status == b'\x84':
-            for switch in self.switches_table:
-                if switch.contains(pkt.src):
-                    port_name = switch.get_port(pkt.src).name
-                    switch.get_port(pkt.src).negotiation = True
-                    msg = "Alert, interface %s on switch %s allow trunk negotiation!" % (port_name, switch.name)
-                    print(msg)
-                    self.log.write(msg)
+        if pkt is not None:
+            src = pkt.eth.src
+            if pkt.dtp.tat == '0x00000000':
+                for switch in self.switches_table:
+                    if switch.contains(src) and not switch.get_port(src).negotiation:
+                        port_name = switch.get_port(src).name
+                        switch.get_port(src).negotiation = True
+                        msg = "Alert, interface %s on switch %s allow trunk negotiation!" % (port_name, switch.name)
+                        print(msg)
+                        self.log.write(msg)
 
     def discover_topology_changes(self, my_host_interface, password):
         net_interface = NetInterface(my_host_interface, password)
@@ -525,19 +528,20 @@ class STPMonitor:
         else:
             sender_mac = pkt.eth.src
             #NEW TRUNK PORT DISCOVER
-            if pkt.highest_layer.upper() == 'DTP' and (pkt.dtp.tas == '0x00000001' or pkt.dtp.tos == '0x00000001'):
-                for switch in self.switches_table:
-                    if switch.contains(sender_mac) and not switch.get_port(sender_mac).trunk:
-                        msg = "port %s is now trunk!" % sender_mac
-                        print(msg)
-                        self.print_to_log(msg)
-                        switch.get_port(sender_mac).trunk = True
-                        for vlan in self.switch_baseline:
-                            for port in self.switch_baseline[vlan].ports:
-                                if port.MAC == sender_mac:
-                                    port.trunk = True
-            else:
-                if pkt.highest_layer.upper() == 'DTP' and (pkt.dtp.tas == '0x00000002' or pkt.dtp.tos == '0x00000000'):
+            if pkt.highest_layer.upper() == 'DTP':
+                self.discover_switch_spoofing(pkt)
+                if pkt.dtp.tas == '0x00000001' or pkt.dtp.tos == '0x00000001':
+                    for switch in self.switches_table:
+                        if switch.contains(sender_mac) and not switch.get_port(sender_mac).trunk:
+                            msg = "port %s is now trunk!" % sender_mac
+                            print(msg)
+                            self.print_to_log(msg)
+                            switch.get_port(sender_mac).trunk = True
+                            for vlan in self.switch_baseline:
+                                for port in self.switch_baseline[vlan].ports:
+                                    if port.MAC == sender_mac:
+                                        port.trunk = True
+                elif pkt.highest_layer.upper() == 'DTP' and (pkt.dtp.tas == '0x00000002' or pkt.dtp.tos == '0x00000000'):
                     for switch in self.switches_table:
                         if switch.contains(sender_mac) and switch.get_port(sender_mac).trunk:
                             msg = "port %s is not trunk anymore!" % sender_mac
@@ -676,22 +680,30 @@ class STPMonitor:
 
     def set_connected_interface_status(self, my_host_interface):
         print("Check connected interface status")
-        for switch in self.switches_table:
-            port_capture = pyshark.LiveCapture(interface=my_host_interface, display_filter="stp")
-            port_capture.sniff(packet_count=1, timeout=10)
-            if port_capture:
-                pkt = port_capture[0]
-                port_capture.close()
-                vlan = pkt.stp.root_ext if pkt.stp.bridge_ext == '0' else pkt.stp.bridge_ext
+        stp_capture = pyshark.LiveCapture(interface=my_host_interface, display_filter="stp")
+        stp_capture.sniff(packet_count=1, timeout=10)
+        if stp_capture:
+            pkt = stp_capture[0]
+            stp_capture.close()
+            vlan = pkt.stp.root_ext if pkt.stp.bridge_ext == '0' else pkt.stp.bridge_ext
 
-                if pkt.eth.src == pkt.stp.bridge_hw and pkt.stp.port != '0x00008001':
-                    port_mac = self.calculate_sender_mac(pkt.eth.src, pkt.stp.port)
-                else:
-                    port_mac = pkt.eth.src
-
-                switch.set_designated_port(port_mac, vlan, initialization=True)
+            if pkt.eth.src == pkt.stp.bridge_hw and pkt.stp.port != '0x00008001':
+                port_mac = self.calculate_sender_mac(pkt.eth.src, pkt.stp.port)
             else:
-                print("Timeout!")
+                port_mac = pkt.eth.src
+
+            for switch in self.switches_table:
+                if switch.contains(port_mac):
+                    switch.set_designated_port(port_mac, vlan, initialization=True)
+        else:
+            print("STP Capture Timeout!")
+
+        dtp_capture = pyshark.LiveCapture(interface=my_host_interface, display_filter="dtp")
+        dtp_capture.sniff(packet_count=1, timeout=30)
+        if dtp_capture:
+            self.discover_switch_spoofing(dtp_capture[0])
+        else:
+            print("DTP Capture Timeout!")
 
     def add_switch(self, switch):
         if switch not in self.switches_table:

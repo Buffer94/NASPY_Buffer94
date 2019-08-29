@@ -138,8 +138,8 @@ class SpanningTreeInstance:
                                                                               port.pvlan_status[self.vlan_id],
                                                                               port.pvlan_status_change_counter[self.vlan_id])
             if port.negotiation:
-                print("\tAlert! ports %s allow trunk negotiations!" % port.name)
-                msg += "\tAlert! ports %s allow trunk negotiations!" % port.name
+                print("\t\tAlert! ports %s allow trunk negotiations!" % port.name)
+                msg += "\t\tAlert! ports %s allow trunk negotiations!" % port.name
         return msg
 
 

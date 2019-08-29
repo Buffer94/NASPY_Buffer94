@@ -146,33 +146,6 @@ class NetInterface:
 
         sendp(arp_request, verbose=False, iface=self.interface, inter=0.5)
 
-    def send_dtp_packet(self):
-        dtp_sniff = pyshark.LiveCapture(interface=self.interface, display_filter="dtp")
-        dtp_sniff.sniff(packet_count=1, timeout=30)
-
-        if dtp_sniff:
-            load_contrib('dtp')
-            mac = get_if_hwaddr(self.interface)
-
-            dot3 = Dot3(src= mac, dst='01:00:0c:cc:cc:cc', len=42)
-
-            llc = LLC(dsap=0xaa, ssap=0xaa, ctrl=3)
-
-            snap = SNAP(OUI=0x0c, code=0x2004)
-
-            dtp = DTP(ver=1, tlvlist=[
-                DTPDomain(length=5, type=1, domain=' '),
-                DTPStatus(status=b'\x81', length=5, type=2),
-                DTPType(length=5, type=3, dtptype=b'\xa5'),
-                DTPNeighbor(type=4, neighbor=mac, len=10)
-            ])
-
-            frame = dot3/llc/snap/dtp
-
-            return srp1(frame, iface=self.interface, verbose=False)
-        else:
-            return None
-
     def send_dns_request(self):
         print('sending DNS Request...')
         dest_ip = '255.255.255.255'

@@ -183,7 +183,6 @@ try:
         arp_monitor.print_ip_arp_table()
 
         if mode == 'stp' or mode == 'all':
-            stp_monitor.discover_switch_spoofing(net_interface.send_dtp_packet())
             time.sleep(stp_monitor.waiting_timer)
             print("Finding topology changes...")
             topology_cng_pkg = pyshark.LiveCapture(interface=interface, display_filter="stp.flags.tc == 1")
