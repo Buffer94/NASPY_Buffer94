@@ -378,6 +378,7 @@ class STPMonitor:
                     if switch.contains(src) and switch.get_port(src).negotiation:
                         port_name = switch.get_port(src).name
                         switch.get_port(src).negotiation = False
+                        switch.get_port(src).no_nego_count = 0
                         msg = "Interface %s on switch %s no longer allow trunk negotiation!" % (port_name, switch.name)
                         print(msg)
                         self.log.write(msg)
@@ -489,6 +490,7 @@ class STPMonitor:
                 if port.negotiation:
                     if port.no_nego_count >= 3:
                         port.negotiation = False
+                        port.no_nego_count = 0
                         msg = "Interface %s on switch %s no longer allow trunk negotiation!" % (port.name, switch.name)
                         print(msg)
                         self.print_to_log(msg)
