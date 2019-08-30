@@ -369,6 +369,7 @@ class STPMonitor:
                     if switch.contains(src) and not switch.get_port(src).negotiation:
                         port_name = switch.get_port(src).name
                         switch.get_port(src).negotiation = True
+                        switch.get_port(src).negotiation_rcvd = True
                         msg = "Alert, interface %s on switch %s allow trunk negotiation!" % (port_name, switch.name)
                         print(msg)
                         self.log.write(msg)
@@ -418,13 +419,19 @@ class STPMonitor:
                         net_interface.ssh.enable_monitor_mode_on_specific_port(port.name)
                         if port.trunk:
                             rcvd_pkt = dict()
+                            to_not_remove = list()
                             port_capture.sniff(packet_count=len(switch.get_vlans()), timeout=10)
                             if port_capture:
                                 for pkt in port_capture:
                                     vlan_id = pkt.stp.root_ext if pkt.stp.bridge_ext == '0' else pkt.stp.bridge_ext
+                                    if vlan_id == 0 and 'type' in pkt.eth.field_names and pkt.eth.type == '0x00008100':
+                                        vlan_id = pkt.vlan.id
+
                                     if vlan_id not in port.pvlan_status:
                                         switch.set_blocked_port(port.MAC, pkt.stp.bridge_ext,
-                                                                priority=pkt.stp.root_prio, b_id=pkt.stp.root_hw)
+                                                                priority=pkt.stp.root_prio, b_id=pkt.stp.root_hw, initialization=True)
+                                    elif pkt.stp.bridge_hw == switch.bridge_id:
+                                        to_not_remove.append(vlan_id)
                                     if vlan_id not in rcvd_pkt and pkt.stp.bridge_hw != switch.bridge_id:
                                         rcvd_pkt[vlan_id] = pkt
 
@@ -438,16 +445,20 @@ class STPMonitor:
                                     if vlan in rcvd_pkt:
                                         bridge_id_min[vlan], root_port[vlan], blocked_port[vlan] = self.get_min_bridge_id(rcvd_pkt[vlan], bridge_id_min[vlan],
                                                                                                                           port.MAC, root_port[vlan], blocked_port[vlan])
+                                    elif vlan not in to_not_remove:
+                                        switch.get_port(port.MAC).remove_vlan(vlan, self.log)
+                                        switch.remove_port_from_stp(vlan, switch.get_port(port.MAC))
                         else:
                             port_capture.sniff(packet_count=1, timeout=10)
                             if port_capture:
                                 pkt = port_capture[0]
                                 vlan = pkt.stp.root_ext if pkt.stp.bridge_ext == '0' else pkt.stp.bridge_ext
-                                if vlan not in port.pvlan_status:
-                                    switch.set_blocked_port(port.MAC, vlan,
-                                                            priority=pkt.stp.root_prio, b_id=pkt.stp.root_hw)
-                                bridge_id_min[vlan], root_port[vlan], blocked_port[vlan] = self.get_min_bridge_id(pkt, bridge_id_min[vlan], port.MAC,
-                                                                                                                  root_port[vlan], blocked_port[vlan])
+                                if port.MAC != pkt.eth.src:
+                                    if vlan not in port.pvlan_status:
+                                        switch.set_blocked_port(port.MAC, vlan,
+                                                                priority=pkt.stp.root_prio, b_id=pkt.stp.root_hw)
+                                    bridge_id_min[vlan], root_port[vlan], blocked_port[vlan] = self.get_min_bridge_id(pkt, bridge_id_min[vlan], port.MAC,
+                                                                                                                      root_port[vlan], blocked_port[vlan])
                         port_capture.close()
             if switch.connected_interface is not None:
                 for vlan_id in switch.get_vlans():
@@ -474,6 +485,18 @@ class STPMonitor:
                                     if vlan_id in port.pvlan_status and self.port_in_baseline(port, vlan_id):
                                         port.remove_vlan(vlan_id, self.log)
                                         switch.remove_port_from_stp(vlan_id, port)
+            for port in switch.ports:
+                if port.negotiation:
+                    if port.no_nego_count >= 3:
+                        port.negotiation = False
+                        msg = "Interface %s on switch %s no longer allow trunk negotiation!" % (port.name, switch.name)
+                        print(msg)
+                        self.print_to_log(msg)
+                    elif not port.negotiation_rcvd:
+                        port.no_nego_count += 1
+                    else:
+                        port.no_nego_count = 0
+                        port.negotiation_rcvd = False
 
     def tc_pkt_callback(self, pkt):
         self.discover_vlan_hopping(pkt, self.log)
@@ -488,51 +511,64 @@ class STPMonitor:
                 port = switch.get_port(sender_mac)
                 pkt_vlan_id = pkt.stp.root_ext if pkt.stp.bridge_ext == '0' else pkt.stp.bridge_ext
                 pkt_root_id = pkt.stp.root_hw
-                if pkt_bridge_id == self.switch_baseline[pkt_vlan_id].bridge_id:
-                    if self.port_in_baseline(port, pkt_vlan_id):
-                        #PRIORITY CHANGE
-                        old_prio = self.switch_baseline[pkt_vlan_id].priority
-                        tc_change = False
-                        if int(pkt_vlan_id) + int(pkt.stp.root_prio) != old_prio:
-                            msg = "Bridge (%s) priority on vlan %s is changed from %s to %s!!" % (pkt_bridge_id,
-                                                                                                  pkt_vlan_id,
-                                                                                                  old_prio,
-                                                                                                  int(pkt_vlan_id) + int(pkt.stp.root_prio))
-                            print(msg)
-                            self.print_to_log(msg)
-                            switch.set_stp_priority(pkt_vlan_id, pkt.stp.root_prio)
-                            self.switch_baseline[pkt_vlan_id].priority = int(pkt.stp.root_prio) + int(pkt_vlan_id)
-                            tc_change = True
-                        #ROOT BRIDGE CHANGE
-                        old_root_bridge = self.switch_baseline[pkt_vlan_id].root_bridge_id
-                        if pkt_root_id != old_root_bridge:
-                            msg = "Root Bridge Change! the new RB of vlan %s is %s" % (pkt_vlan_id, pkt_root_id)
-                            print(msg)
-                            self.print_to_log(msg)
-                            switch.set_stp_root_id(pkt_vlan_id, pkt_root_id)
-                            self.switch_baseline[pkt_vlan_id].root_bridge_id = pkt_root_id
-                            tc_change = True
-                        #PORT_STATUS_CHANGE
-                        if pkt_vlan_id in port.pvlan_status:
-                            port_status = port.pvlan_status[pkt_vlan_id]
-                            if port_status != "Designated":
-                                msg = "Port %s on vlan %s has switched his state from %s to Designated" % (port.name, pkt_vlan_id, port_status)
+                if (pkt_vlan_id == 0 or pkt_root_id == 0) and 'type' in pkt.eth.field_names and pkt.eth.type == '0x00008100':
+                    pkt_vlan_id = pkt.vlan.id
+
+                if pkt_vlan_id in self.switch_baseline:
+                    if pkt_bridge_id == self.switch_baseline[pkt_vlan_id].bridge_id:
+                        if self.port_in_baseline(port, pkt_vlan_id):
+                            #PRIORITY CHANGE
+                            old_prio = self.switch_baseline[pkt_vlan_id].priority
+                            tc_change = False
+                            if int(pkt_vlan_id) + int(pkt.stp.root_prio) != old_prio:
+                                msg = "Bridge (%s) priority on vlan %s is changed from %s to %s!!" % (pkt_bridge_id,
+                                                                                                      pkt_vlan_id,
+                                                                                                      old_prio,
+                                                                                                      int(pkt_vlan_id) + int(pkt.stp.root_prio))
                                 print(msg)
                                 self.print_to_log(msg)
-                                switch.set_designated_port(sender_mac, pkt_vlan_id, override=True)
-                                switch.increase_port_tc_counter(pkt_vlan_id, sender_mac)
-                            for bport in self.switch_baseline[pkt_vlan_id].ports:
-                                if bport.MAC == port.MAC:
-                                    self.switch_baseline[pkt_vlan_id].ports.remove(bport)
+                                switch.set_stp_priority(pkt_vlan_id, pkt.stp.root_prio)
+                                self.switch_baseline[pkt_vlan_id].priority = int(pkt.stp.root_prio) + int(pkt_vlan_id)
+                                tc_change = True
+                            #ROOT BRIDGE CHANGE
+                            old_root_bridge = self.switch_baseline[pkt_vlan_id].root_bridge_id
+                            if pkt_root_id != old_root_bridge:
+                                msg = "Root Bridge Change! the new RB of vlan %s is %s" % (pkt_vlan_id, pkt_root_id)
+                                print(msg)
+                                self.print_to_log(msg)
+                                switch.set_stp_root_id(pkt_vlan_id, pkt_root_id)
+                                self.switch_baseline[pkt_vlan_id].root_bridge_id = pkt_root_id
+                                tc_change = True
+                            #PORT_STATUS_CHANGE
+                            if pkt_vlan_id in port.pvlan_status:
+                                port_status = port.pvlan_status[pkt_vlan_id]
+                                if port_status != "Designated":
+                                    msg = "Port %s on vlan %s has switched his state from %s to Designated" % (port.name, pkt_vlan_id, port_status)
+                                    print(msg)
+                                    self.print_to_log(msg)
+                                    switch.set_designated_port(sender_mac, pkt_vlan_id, override=True)
+                                    switch.increase_port_tc_counter(pkt_vlan_id, sender_mac)
+                                for bport in self.switch_baseline[pkt_vlan_id].ports:
+                                    if bport.MAC == port.MAC:
+                                        self.switch_baseline[pkt_vlan_id].ports.remove(bport)
 
-                        if tc_change:
-                            switch.increase_tc_counter(pkt_vlan_id)
-                    else:
-                        if pkt_vlan_id not in port.pvlan_status:
-                            msg = "New vlan (%s) has added at this trunk port %s" % (pkt_vlan_id, port.name)
-                            print(msg)
-                            self.print_to_log(msg)
-                            switch.set_designated_port(sender_mac, pkt_vlan_id, priority=pkt.stp.root_prio, b_id=pkt_root_id)
+                            if tc_change:
+                                switch.increase_tc_counter(pkt_vlan_id)
+                        else:
+                            if pkt_vlan_id not in port.pvlan_status:
+                                msg = "New vlan (%s) has added at this trunk port %s" % (pkt_vlan_id, port.name)
+                                print(msg)
+                                self.print_to_log(msg)
+                                switch.set_designated_port(sender_mac, pkt_vlan_id, priority=pkt.stp.root_prio, b_id=pkt_root_id, initialization=True)
+                                self.add_port_to_baseline(port.MAC, pkt_vlan_id)
+                else:
+                    if pkt_vlan_id not in port.pvlan_status:
+                        msg = "New vlan (%s) has added at this trunk port %s" % (pkt_vlan_id, port.name)
+                        print(msg)
+                        self.print_to_log(msg)
+                        switch.set_designated_port(sender_mac, pkt_vlan_id, priority=pkt.stp.root_prio,
+                                                   b_id=pkt_root_id, initialization=True)
+                        self.add_port_to_baseline(port.MAC, pkt_vlan_id)
         else:
             sender_mac = pkt.eth.src
             #NEW TRUNK PORT DISCOVER
@@ -549,17 +585,6 @@ class STPMonitor:
                                 for port in self.switch_baseline[vlan].ports:
                                     if port.MAC == sender_mac:
                                         port.trunk = True
-                elif pkt.highest_layer.upper() == 'DTP' and (pkt.dtp.tas == '0x00000002' or pkt.dtp.tos == '0x00000000'):
-                    for switch in self.switches_table:
-                        if switch.contains(sender_mac) and switch.get_port(sender_mac).trunk:
-                            msg = "port %s is not trunk anymore!" % sender_mac
-                            print(msg)
-                            self.print_to_log(msg)
-                            switch.get_port(sender_mac).trunk = False
-                            for vlan in self.switch_baseline:
-                                for port in self.switch_baseline[vlan].ports:
-                                    if port.MAC == sender_mac:
-                                        port.trunk = False
 
     def take_blocked_port_from_baseline(self):
         blocked_port = list()
@@ -728,6 +753,20 @@ class STPMonitor:
             if switch.bridge_id == switch_id:
                 return switch
         return None
+
+    def add_port_to_baseline(self, port_mac, vlan_id):
+        for vlan in self.switch_baseline:
+            for port in self.switch_baseline[vlan].ports:
+                if port.MAC == port_mac:
+                    base_port = port
+                    break
+        if base_port is not None:
+            base_port.set_port_as_designated(vlan_id, initialization=True)
+            if vlan_id in self.switch_baseline:
+                self.switch_baseline[vlan_id].add_port(base_port)
+            else:
+                self.switch_baseline[vlan_id] = SpanningTreeInstance(vlan_id)
+                self.switch_baseline[vlan_id].add_port(base_port)
 
     def port_in_baseline(self, port, vlan_id):
         for p in self.switch_baseline[vlan_id].ports:

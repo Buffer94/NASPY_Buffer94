@@ -131,15 +131,24 @@ class SpanningTreeInstance:
         print("  Recents Topology Change: %s" % self.tc_counter)
         msg += "  Recents Topology Change: %s\n" % self.tc_counter
         for port in self.ports:
-            print("\tPort: %s - Address: %s, Status: %s - #Rec_CNG: %s" % (port.name, port.MAC,
-                                                                           port.pvlan_status[self.vlan_id],
-                                                                           port.pvlan_status_change_counter[self.vlan_id]))
-            msg += "\tPort: %s - Address: %s, Status: %s - #Rec_CNG: %s\n" % (port.name, port.MAC,
-                                                                              port.pvlan_status[self.vlan_id],
-                                                                              port.pvlan_status_change_counter[self.vlan_id])
             if port.negotiation:
-                print("\t\tAlert! ports %s allow trunk negotiations!" % port.name)
-                msg += "\t\tAlert! ports %s allow trunk negotiations!" % port.name
+                print("\tPort: %s(!) - Address: %s, Status: %s - #Rec_CNG: %s" % (port.name, port.MAC,
+                                                                               port.pvlan_status[self.vlan_id],
+                                                                               port.pvlan_status_change_counter[
+                                                                                   self.vlan_id]))
+                msg += "\tPort: %s(!) - Address: %s, Status: %s - #Rec_CNG: %s\n" % (port.name, port.MAC,
+                                                                                  port.pvlan_status[self.vlan_id],
+                                                                                  port.pvlan_status_change_counter[
+                                                                                      self.vlan_id])
+            else:
+                print("\tPort: %s - Address: %s, Status: %s - #Rec_CNG: %s" % (port.name, port.MAC,
+                                                                               port.pvlan_status[self.vlan_id],
+                                                                               port.pvlan_status_change_counter[self.vlan_id]))
+                msg += "\tPort: %s - Address: %s, Status: %s - #Rec_CNG: %s\n" % (port.name, port.MAC,
+                                                                                  port.pvlan_status[self.vlan_id],
+                                                                                  port.pvlan_status_change_counter[self.vlan_id])
+        print("(!) - Port allow trunk negotiations!")
+        msg += "(!) - Port allow trunk negotiations!\n"
         return msg
 
 
@@ -252,6 +261,8 @@ class Switch:
 
     def remove_port_from_stp(self, vlan_id, port):
         self.spanning_tree_instances[vlan_id].remove_port(port)
+        if len(self.spanning_tree_instances[vlan_id].ports) == 0:
+            del self.spanning_tree_instances[vlan_id]
 
     def there_is_root_port(self, vlan_id):
         return self.spanning_tree_instances[vlan_id].there_is_root_port()
@@ -298,6 +309,8 @@ class Port:
         self.pvlan_status_change_counter = dict()
         self.trunk = False
         self.negotiation = False
+        self.negotiation_rcvd = False
+        self.no_nego_count = 0
 
     def set_port_as_designated(self, vlan_id=1, override=False, initialization=False):
         if len(self.pvlan_status) > 0 and vlan_id not in self.pvlan_status and not self.trunk:
@@ -324,7 +337,10 @@ class Port:
                 self.pvlan_status_change_counter[vlan_id] = 0
 
     def increase_status_change_counter(self, vlan):
-        self.pvlan_status_change_counter[vlan] += 1
+        if vlan in self.pvlan_status_change_counter:
+            self.pvlan_status_change_counter[vlan] += 1
+        else:
+            self.pvlan_status_change_counter[vlan] = 0
 
     def get_vlan(self):
         return list(self.pvlan_status.keys())
@@ -340,10 +356,11 @@ class Port:
             return True
         return False
 
-    def remove_vlan(self, vlan_id, log):
+    def remove_vlan(self, vlan_id, log=None):
         if vlan_id in self.pvlan_status:
             del self.pvlan_status[vlan_id]
-            if len(self.pvlan_status) < 2:
+            if len(self.pvlan_status) < 2 and self.trunk:
                 self.trunk = False
                 print("Port %s is no longer TRUNK!" % self.name)
-                log.write("Port %s is no longer TRUNK!" % self.name)
+                if log is not None:
+                    log.write("Port %s is no longer TRUNK!" % self.name)
