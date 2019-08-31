@@ -671,7 +671,7 @@ class STPMonitor:
                 priority_min = int(pkt.stp.bridge_prio)
                 mac_min = pkt.stp.bridge_hw
                 bridge_min_id = (priority_min, mac_min)
-                if blocked_port != 0  and root_port is not None:
+                if blocked_port != 0 and root_port is not None:
                     blocked_port = root_port
                 root_port = port_mac
             else:
