@@ -109,13 +109,19 @@ class LogSender:
                 payload.add_header('Content-Disposition', 'attachment', filename=filename)
                 msg.attach(payload)
 
-        try:
-            server = smtplib.SMTP_SSL(self.server_address, self.server_port)
-            server.ehlo()
-            server.login(self.user, self.password)
-            server.sendmail(self.user, addresses, msg.as_string())
-            return True
-        except Exception as e:
-            return False
-        finally:
-            server.close()
+        num_attempt = 0
+        while num_attempt < 10:
+            try:
+                server = smtplib.SMTP_SSL(self.server_address, self.server_port)
+                server.ehlo()
+                server.login(self.user, self.password)
+                server.sendmail(self.user, addresses, msg.as_string())
+                return True
+            except Exception:
+                if num_attempt >= 10:
+                    print('Something went wrong...')
+                    return False
+                num_attempt += 1
+                print('Error, retriyng')
+            finally:
+                server.close()
