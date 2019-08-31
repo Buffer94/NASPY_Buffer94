@@ -605,7 +605,7 @@ class STPMonitor:
                     net_interface.parameterized_ssh_connection(port.MAC, switch.ip, switch.name, switch.password,
                                                                switch.en_password, switch.connected_interface, 20)
                     port_capture = pyshark.LiveCapture(interface=net_interface.interface,
-                                                       display_filter="stp")
+                                                       display_filter="stp and stp.bridge.hw != %s" % switch.bridge_id)
                     net_interface.ssh.enable_monitor_mode_on_specific_port(port.name)
                     rcvd_pkt = dict()
                     print('start sniffing on %s (%s)...' % (port.name, port.MAC))
