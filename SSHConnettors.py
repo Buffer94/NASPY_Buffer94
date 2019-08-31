@@ -115,7 +115,7 @@ class CiscoSSH:
         self.child.expect('\(config-applet\)#')
         self.child.sendline('action 02 cli command "configure terminal"')
         self.child.expect('\(config-applet\)#')
-        self.child.sendline('action 03 cli command "no monitor session 1"')
+        self.child.sendline('action 03 cli command "no monitor session 94"')
         self.child.expect('\(config-applet\)#')
         self.child.sendline('action 04 cli command "end"')
         self.child.expect('\(config-applet\)#')
@@ -135,7 +135,7 @@ class CiscoSSH:
 
             for interface in self.switch_interfaces:
                 if self.connected_interface[-3:] not in interface:
-                    self.child.sendline('monitor session 1 source interface %s' % interface)
+                    self.child.sendline('monitor session 94 source interface %s' % interface)
                     self.child.expect('\(config\)#')
 
             self.child.sendline(
@@ -155,7 +155,7 @@ class CiscoSSH:
 
             for interface in interfaces:
                 if self.connected_interface[-3:] not in interface:
-                    self.child.sendline('monitor session 1 source interface %s' % interface)
+                    self.child.sendline('monitor session 94 source interface %s' % interface)
                     self.child.expect('\(config\)#')
 
             self.child.sendline(
@@ -173,7 +173,7 @@ class CiscoSSH:
             self.child.timeout = 5
             self.child.sendline('configure terminal')
             self.child.expect('\(config\)#')
-            self.child.sendline('monitor session 1 source interface %s' % port_name)
+            self.child.sendline('monitor session 94 source interface %s' % port_name)
             self.child.expect('\(config\)#')
             self.child.sendline(
                 'monitor session 1 destination interface %s encapsulation replicate' % self.connected_interface)
