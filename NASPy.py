@@ -180,6 +180,9 @@ try:
             print('Capture finished!')
 
         dhcp_monitor.print_dhcp_servers()
+        dhcp_monitor.increase_counter()
+        dns_monitor.print_dns_servers()
+        dns_monitor.increase_counter()
         arp_monitor.print_ip_arp_table()
 
         if mode == 'stp' or mode == 'all':
@@ -208,7 +211,8 @@ try:
             sender = LogSender()
             sender.send(email_receiver, daily_body_message, 'Daily Report!', 'log.naspy', 'filename')
 except (KeyboardInterrupt, RuntimeError, TypeError):
-    topology_cng_pkg.eventloop.close()
+    if topology_cng_pkg is not None:
+        topology_cng_pkg.eventloop.close()
     capture.eventloop.close()
     log.close()
     print("Bye!!")

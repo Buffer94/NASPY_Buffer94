@@ -28,6 +28,7 @@ class RogueDHCPMonitor:
                 found = False
                 for dhcp_server in self.dhcp_servers:
                     if dhcp_server.equals(pkt_mac):
+                        dhcp_server.restore_response_count()
                         found = True
                 if not found:
                     new_dhcp_server = DHCPServer(pkt_ip, pkt_mac, subnet)
@@ -41,6 +42,14 @@ class RogueDHCPMonitor:
                 self.print_to_log('New DHCP Server discovered')
                 self.print_to_log(new_dhcp_server.print_info())
                 self.dhcp_servers.append(new_dhcp_server)
+
+    def increase_counter(self):
+        for dhcp_server in self.dhcp_servers:
+            if dhcp_server.no_response_count >= 3:
+                print("DHCP Server %s is no longer available!" % dhcp_server.ip_address)
+                self.print_to_log("DHCP Server %s is no longer available!" % dhcp_server.ip_address)
+                self.dhcp_servers.remove(dhcp_server)
+            dhcp_server.increase_response_count()
 
     def print_dhcp_servers(self):
         if len(self.dhcp_servers) > 0:
@@ -70,8 +79,10 @@ class RogueDNSMonitor:
             server_mac = pkt.eth.src
 
             if len(self.dns_servers) > 0:
+                found = False
                 for dns_server in self.dns_servers:
                     if dns_server.equals(server_mac):
+                        dns_server.restore_response_count()
                         found = True
                 if not found:
                     new_dns_server = DNSServer(server_ip, server_mac)
@@ -86,11 +97,20 @@ class RogueDNSMonitor:
                 self.print_to_log('New DNS Server discovered')
                 self.print_to_log(new_dns_server.print_info())
 
+    def increase_counter(self):
+        for dns_server in self.dns_servers:
+            if dns_server.no_response_count >= 3:
+                print("DNS Server %s is no longer available!" % dns_server.ip_address)
+                self.print_to_log("DNS Server %s is no longer available!" % dns_server.ip_address)
+                self.dns_servers.remove(dns_server)
+            else:
+                dns_server.increase_response_count()
+
     def print_dns_servers(self):
         if len(self.dns_servers) > 0:
             print("DNS Servers on the network:")
             for dns_server in self.dns_servers:
-                dns_server.print_info(self.log)
+                self.print_to_log(dns_server.print_info())
         else:
             print("No DNS Servers found!")
             self.print_to_log('No DNS Servers found!')
@@ -207,8 +227,8 @@ class ArpMonitor:
                     'Alert, security issue detected!', self.get_ip_arp_table_string(), 'text')
 
     def print_ip_arp_table(self):
-        print("%s - Arp Table:" % datetime.now().strftime("%H:%M:%S"))
-        self.print_to_log("Arp Table:")
+        print("Arp Table:")
+        self.print_to_log("%s - Arp Table:" % datetime.now().strftime("%H:%M:%S"))
         for ip in self.ip_arp_table:
             msg = "IP %s - MAC: %s" % (ip, str(self.ip_arp_table[ip])[1:-1])
             self.print_to_log(msg)

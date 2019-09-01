@@ -7,6 +7,7 @@ class DHCPServer:
         self.ip_address = ip_address
         self.mac_address = mac_address
         self.subnet = subnet
+        self.no_response_count = 0
 
     def print_info(self):
         msg = 'Ip Address: %s MAC address: %s Subnet %s' % (self.ip_address, self.mac_address, self.subnet)
@@ -15,6 +16,12 @@ class DHCPServer:
 
     def set_ip_address(self, ip_address):
         self.ip_address = ip_address
+
+    def restore_response_count(self):
+        self.no_response_count = 0
+
+    def increase_response_count(self):
+        self.no_response_count += 1
 
     def equals(self, n_mac_address):
         return True if self.mac_address == n_mac_address else False
@@ -25,6 +32,7 @@ class DNSServer:
     def __init__(self, ip_address, mac_address):
         self.ip_address = ip_address
         self.mac_address = mac_address
+        self.no_response_count = 0
 
     def print_info(self):
         msg = 'Ip Address: %s MAC address: %s' % (self.ip_address, self.mac_address)
@@ -33,6 +41,12 @@ class DNSServer:
 
     def set_ip_address(self, ip_address):
         self.ip_address = ip_address
+
+    def restore_response_count(self):
+        self.no_response_count = 0
+
+    def increase_response_count(self):
+        self.no_response_count += 1
 
     def equals(self, n_mac_address):
         return True if self.mac_address == n_mac_address else False

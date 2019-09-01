@@ -148,12 +148,14 @@ class NetInterface:
 
     def send_dns_request(self):
         print('sending DNS Request...')
+        local_mac = get_if_hwaddr(self.interface)
+        broad_mac = 'ff:ff:ff:ff:ff:ff'
         dest_ip = '255.255.255.255'
 
-        dns_request = IP(dst=dest_ip)/UDP(sport=RandShort(), dport=53) / \
+        dns_request = Ether(src=local_mac, dst=broad_mac) /IP(dst=dest_ip)/UDP(sport=RandShort(), dport=53) / \
                       DNS(rd=1, qd=DNSQR(qname="google.it", qtype="A"))
 
-        send(dns_request, iface=self.interface, verbose=False, count=15, inter=0.5)
+        sendp(dns_request, iface=self.interface, verbose=False, count=15, inter=0.5)
 
     def read_credentials(self):
         credentials = list()
