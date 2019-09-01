@@ -31,17 +31,16 @@ class RogueDHCPMonitor:
                         dhcp_server.restore_response_count()
                         found = True
                 if not found:
-                    new_dhcp_server = DHCPServer(pkt_ip, pkt_mac, subnet)
-                    self.dhcp_servers.append(new_dhcp_server)
-                    print("New DHCP Server discovered")
-                    self.print_to_log('New DHCP Server discovered')
-                    self.print_to_log(new_dhcp_server.print_info())
+                    self.add_new_dhcp_server(pkt_ip, pkt_mac, subnet)
             else:
-                new_dhcp_server = DHCPServer(pkt_ip, pkt_mac, subnet)
-                print("New DHCP Server discovered")
-                self.print_to_log('New DHCP Server discovered')
-                self.print_to_log(new_dhcp_server.print_info())
-                self.dhcp_servers.append(new_dhcp_server)
+                self.add_new_dhcp_server(pkt_ip, pkt_mac, subnet)
+
+    def add_new_dhcp_server(self, pkt_ip, pkt_mac, subnet):
+        new_dhcp_server = DHCPServer(pkt_ip, pkt_mac, subnet)
+        self.dhcp_servers.append(new_dhcp_server)
+        print("New DHCP Server discovered")
+        self.print_to_log('New DHCP Server discovered')
+        self.print_to_log(new_dhcp_server.print_info())
 
     def increase_counter(self):
         for dhcp_server in self.dhcp_servers:
@@ -85,17 +84,16 @@ class RogueDNSMonitor:
                         dns_server.restore_response_count()
                         found = True
                 if not found:
-                    new_dns_server = DNSServer(server_ip, server_mac)
-                    self.dns_servers.append(new_dns_server)
-                    print("New DNS Server Discovered")
-                    self.print_to_log('New DNS Server discovered')
-                    self.print_to_log(new_dns_server.print_info())
+                    self.add_new_dns_server(server_ip, server_mac)
             else:
-                new_dns_server = DNSServer(server_ip, server_mac)
-                self.dns_servers.append(new_dns_server)
-                print("New DNS Server Discovered")
-                self.print_to_log('New DNS Server discovered')
-                self.print_to_log(new_dns_server.print_info())
+                self.add_new_dns_server(server_ip, server_mac)
+
+    def add_new_dns_server(self, server_ip, server_mac):
+        new_dns_server = DNSServer(server_ip, server_mac)
+        self.dns_servers.append(new_dns_server)
+        print("New DNS Server Discovered")
+        self.print_to_log('New DNS Server discovered')
+        self.print_to_log(new_dns_server.print_info())
 
     def increase_counter(self):
         for dns_server in self.dns_servers:
