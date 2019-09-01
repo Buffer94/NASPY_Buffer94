@@ -141,7 +141,7 @@ try:
             threading.Thread(target=net_interface.send_dhcp_discover).start()
 
         if mode == 'dns' or mode == 'all':
-            threading.Thread(target=net_interface.send_dns_request).start()
+            threading.Thread(target=net_interface.send_dns_query).start()
 
         # if mode == 'ARP' or mode == 'all':
             # def async_arp_watch():

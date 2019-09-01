@@ -146,8 +146,8 @@ class NetInterface:
 
         sendp(arp_request, verbose=False, iface=self.interface, inter=0.5)
 
-    def send_dns_request(self):
-        print('sending DNS Request...')
+    def send_dns_query(self):
+        print('sending DNS Query...')
         local_mac = get_if_hwaddr(self.interface)
         broad_mac = 'ff:ff:ff:ff:ff:ff'
         dest_ip = '255.255.255.255'
