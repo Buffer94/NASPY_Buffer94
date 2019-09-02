@@ -32,28 +32,29 @@ class NetInterface:
 
     def wait_for_initial_information(self):
         print("Wait for initial configurations... ")
-        sniff = pyshark.LiveCapture(interface=self.interface, display_filter="cdp or lldp")
-        sniff.sniff(packet_count=3)
+        capt = pyshark.LiveCapture(interface=self.interface, display_filter="cdp or lldp")
+        capt.sniff(packet_count=3, timeout=60)
 
-        for pkt in sniff:
-            if pkt.highest_layer.upper() == 'CDP':
-                if 'number_of_addresses' in pkt.cdp.field_names and pkt.cdp.number_of_addresses == '1':
-                    self.switch_ip = pkt.cdp.nrgyz_ip_address
-                if 'Port'in pkt.cdp.portid:
-                    self.switch_interface = pkt.cdp.portid.split('Port: ')[1]
-                else:
-                    self.switch_interface = pkt.cdp.portid
-                self.switch_MAC = pkt.eth.src
-            if pkt.highest_layer.upper() == 'LLDP':
-                if 'mgn_addr_ip4' in pkt.lldp.field_names:
-                    self.switch_ip = pkt.lldp.mgn_addr_ip4
-                if 'chassis_id_mac' in pkt.lldp.field_names:
-                    self.switch_MAC = pkt.lldp.chassis_id_mac
-                else:
+        if capt:
+            for pkt in capt:
+                if pkt.highest_layer.upper() == 'CDP':
+                    if 'number_of_addresses' in pkt.cdp.field_names and pkt.cdp.number_of_addresses == '1':
+                        self.switch_ip = pkt.cdp.nrgyz_ip_address
+                    if 'Port'in pkt.cdp.portid:
+                        self.switch_interface = pkt.cdp.portid.split('Port: ')[1]
+                    else:
+                        self.switch_interface = pkt.cdp.portid
                     self.switch_MAC = pkt.eth.src
-                self.switch_interface = pkt.lldp.port_id
+                if pkt.highest_layer.upper() == 'LLDP':
+                    if 'mgn_addr_ip4' in pkt.lldp.field_names:
+                        self.switch_ip = pkt.lldp.mgn_addr_ip4
+                    if 'chassis_id_mac' in pkt.lldp.field_names:
+                        self.switch_MAC = pkt.lldp.chassis_id_mac
+                    else:
+                        self.switch_MAC = pkt.eth.src
+                    self.switch_interface = pkt.lldp.port_id
 
-        sniff.eventloop.close()
+        capt.eventloop.close()
         print("initial configurations done!")
 
     def ssh_connection(self):

@@ -121,11 +121,10 @@ class RogueDNSMonitor:
 
 class ArpMonitor:
 
-    def __init__(self, log, email_receiver):
+    def __init__(self, log):
         self.ip_arp_table = dict()
         self.mac_arp_table = dict()
         self.log = log
-        self.email_receiver = email_receiver
 
     def update_arp_table(self, pkt, sender_port=None, target_port=None):
         sender_mac = pkt.arp.src_hw_mac
@@ -221,8 +220,8 @@ class ArpMonitor:
 
     def send_alert_email(self, msg):
         sender = LogSender()
-        sender.send(self.email_receiver, '%s - %s' % (datetime.now().strftime('%H:%M:%S'), msg),
-                    'Alert, security issue detected!', self.get_ip_arp_table_string(), 'text')
+        sender.send('%s - %s' % (datetime.now().strftime('%H:%M:%S'), msg),
+                    'Alert, security issue detected!', attachment=self.get_ip_arp_table_string(), att_type='text')
 
     def print_ip_arp_table(self):
         print("Arp Table:")
@@ -399,6 +398,9 @@ class STPMonitor:
         net_interface.ssh_no_credential_connection()
         switch_port_mac = net_interface.switch_MAC
         for switch in self.switches_table:
+            bridge_id_min = dict()
+            root_port = dict()
+            blocked_port = dict()
             if switch.contains(switch_port_mac):
                 self.switch_baseline = copy.deepcopy(switch.spanning_tree_instances)
                 if switch.connected_interface is not None:
@@ -409,9 +411,7 @@ class STPMonitor:
                 except concurrent.futures.TimeoutError:
                     tc_capture.close()
                     print('Capture finished!')
-                bridge_id_min = dict()
-                root_port = dict()
-                blocked_port = dict()
+
                 for vlan_id in switch.get_vlans():
                     bridge_id_min[vlan_id] = (60000, None)  # Priority, Mac
                     root_port[vlan_id] = None
@@ -472,7 +472,7 @@ class STPMonitor:
                         port_capture.close()
             if switch.connected_interface is not None:
                 for vlan_id in switch.get_vlans():
-                    if root_port[vlan_id] is not None:
+                    if vlan_id in root_port and root_port[vlan_id] is not None:
                         for port in switch.ports:
                             if port.MAC == root_port[vlan_id]:
                                 if port.pvlan_status[vlan_id] != "Root":
@@ -512,7 +512,7 @@ class STPMonitor:
     def tc_pkt_callback(self, pkt):
         self.discover_vlan_hopping(pkt, self.log)
         if pkt.highest_layer.upper() == 'STP':
-            if pkt.eth.src == pkt.stp.bridge_ext and pkt.stp.port != '0x00008001':
+            if pkt.eth.src == pkt.stp.bridge_hw and pkt.stp.port != '0x00008001':
                 sender_mac = self.calculate_sender_mac(pkt.eth.src, pkt.stp.port)
             else:
                 sender_mac = pkt.eth.src
@@ -780,9 +780,10 @@ class STPMonitor:
                 self.switch_baseline[vlan_id].add_port(base_port)
 
     def port_in_baseline(self, port, vlan_id):
-        for p in self.switch_baseline[vlan_id].ports:
-            if port.MAC == p.MAC:
-                return True
+        if len(self.switch_baseline[vlan_id].ports) > 0 and port is not None:
+            for p in self.switch_baseline[vlan_id].ports:
+                if port.MAC == p.MAC:
+                    return True
         return False
 
     def print_to_log(self, msg):

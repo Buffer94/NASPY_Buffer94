@@ -256,6 +256,8 @@ class Switch:
         for port in self.ports:
             if port.MAC == port_address:
                 return True
+        if port_address == self.bridge_id:
+            return True
         return False
 
     def increase_tc_counter(self, vlan):

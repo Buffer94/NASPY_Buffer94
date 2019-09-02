@@ -54,7 +54,7 @@ class LogSender:
         msg['Subject'] = subject
         msg['From'] = self.user
 
-        if addresses == None:
+        if addresses is None:
             addresses = self.addresses
 
         if isinstance(addresses, str):
