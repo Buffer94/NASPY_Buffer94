@@ -122,6 +122,6 @@ class LogSender:
                     print('Something went wrong...')
                     return False
                 num_attempt += 1
-                print('Error, retriyng')
+                print('Error, retrying')
             finally:
                 server.close()

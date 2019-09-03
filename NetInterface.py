@@ -139,14 +139,6 @@ class NetInterface:
             dport=67, sport=68) / BOOTP(chaddr=local_mac_raw) / DHCP(options=[('message-type', 'discover'), 'end'])
         sendp(dhcp_discover, iface=self.interface, count=15, inter=0.5, verbose=False)
 
-    def send_arp_request(self, ip, netmask):
-        print('sending ARP Request...')
-        broad_mac = 'ff:ff:ff:ff:ff:ff'
-        subnet_ip = '%s/%s' % (ip, netmask)
-        arp_request = Ether(dst=broad_mac)/ARP(pdst=subnet_ip)
-
-        sendp(arp_request, verbose=False, iface=self.interface, inter=0.5)
-
     def send_dns_query(self):
         print('sending DNS Query...')
         local_mac = get_if_hwaddr(self.interface)

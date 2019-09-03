@@ -1,3 +1,5 @@
+from builtins import print
+
 import pexpect
 import re
 from NetworkElements import Switch
@@ -115,7 +117,7 @@ class CiscoSSH:
         self.child.expect('\(config-applet\)#')
         self.child.sendline('action 02 cli command "configure terminal"')
         self.child.expect('\(config-applet\)#')
-        self.child.sendline('action 03 cli command "no monitor session 94"')
+        self.child.sendline('action 03 cli command "no monitor session 27"')
         self.child.expect('\(config-applet\)#')
         self.child.sendline('action 04 cli command "end"')
         self.child.expect('\(config-applet\)#')
@@ -135,11 +137,11 @@ class CiscoSSH:
 
             for interface in self.switch_interfaces:
                 if self.connected_interface[-3:] not in interface:
-                    self.child.sendline('monitor session 94 source interface %s' % interface)
+                    self.child.sendline('monitor session 27 source interface %s' % interface)
                     self.child.expect('\(config\)#')
 
             self.child.sendline(
-                'monitor session 1 destination interface %s encapsulation replicate' % self.connected_interface)
+                'monitor session 27 destination interface %s encapsulation replicate' % self.connected_interface)
             self.child.expect('\(config\)#')
             self.child.close()
         except (pexpect.EOF, pexpect.TIMEOUT):
@@ -155,11 +157,11 @@ class CiscoSSH:
 
             for interface in interfaces:
                 if self.connected_interface[-3:] not in interface:
-                    self.child.sendline('monitor session 94 source interface %s' % interface)
+                    self.child.sendline('monitor session 27 source interface %s' % interface)
                     self.child.expect('\(config\)#')
 
             self.child.sendline(
-                'monitor session 1 destination interface %s encapsulation replicate' % self.connected_interface)
+                'monitor session 27 destination interface %s encapsulation replicate' % self.connected_interface)
             self.child.expect('\(config\)#')
         except (pexpect.EOF, pexpect.TIMEOUT):
             print("Connection Closed!")
@@ -173,10 +175,10 @@ class CiscoSSH:
             self.child.timeout = 5
             self.child.sendline('configure terminal')
             self.child.expect('\(config\)#')
-            self.child.sendline('monitor session 94 source interface %s' % port_name)
+            self.child.sendline('monitor session 27 source interface %s' % port_name)
             self.child.expect('\(config\)#')
             self.child.sendline(
-                'monitor session 1 destination interface %s encapsulation replicate' % self.connected_interface)
+                'monitor session 27 destination interface %s encapsulation replicate' % self.connected_interface)
             self.child.expect('\(config\)#')
         except (pexpect.EOF, pexpect.TIMEOUT):
             print("Connection Closed!")
@@ -213,8 +215,8 @@ class ExtremeSSH:
                 self.child.expect('#')
                 self.child.sendline('disable clipaging')
                 self.child.expect('#')
-                print("Connected!")
                 self.switch = Switch(name, ip, pwd, en_pwd, self.connected_interface)
+                print("Connected!")
                 return True
             except (pexpect.EOF, pexpect.TIMEOUT):
                 attempts += 1

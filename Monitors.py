@@ -202,9 +202,9 @@ class ArpMonitor:
                 for pair2 in self.mac_arp_table[mac]:
                     if pair[0] != pair2[0] and pair[1] == pair2[1]:
                         if mac in ips:
-                            if pair not in ips:
+                            if pair not in ips[mac]:
                                 ips[mac].append(pair)
-                            if pair2 not in ips:
+                            if pair2 not in ips[mac]:
                                 ips[mac].append(pair2)
                         else:
                             ips[mac] = list()
@@ -221,7 +221,8 @@ class ArpMonitor:
     def send_alert_email(self, msg):
         sender = LogSender()
         sender.send('%s - %s' % (datetime.now().strftime('%H:%M:%S'), msg),
-                    'Alert, security issue detected!', attachment=self.get_ip_arp_table_string(), att_type='text')
+                    'Alert, security issue detected!', attachment=self.get_ip_arp_table_string(), att_type=
+                    'text')
 
     def print_ip_arp_table(self):
         print("Arp Table:")
@@ -648,28 +649,28 @@ class STPMonitor:
 
                                 switch.set_blocked_port(port.MAC, vlan_id, priority=pkt.stp.root_prio,
                                                         b_id=pkt.stp.root_hw, initialization=True)
-                    if not port.trunk:
-                        pkt = port_capture[0]
-                        if pkt.stp.bridge_ext == '0' and pkt.stp.root_ext == '0':
-                            if 'pvst' in pkt.stp.field_names:
-                                vlan = pkt.stp.pvst.origvlan
-                        else:
-                            vlan = pkt.stp.root_ext if pkt.stp.bridge_ext == '0' else pkt.stp.bridge_ext
+                        if not port.trunk:
+                            pkt = port_capture[0]
+                            if pkt.stp.bridge_ext == '0' and pkt.stp.root_ext == '0':
+                                if 'pvst' in pkt.stp.field_names:
+                                    vlan = pkt.stp.pvst.origvlan
+                            else:
+                                vlan = pkt.stp.root_ext if pkt.stp.bridge_ext == '0' else pkt.stp.bridge_ext
 
-                        bridge_id_min[vlan], root_port[vlan] = self.get_min_bridge_id(pkt, bridge_id_min[vlan],
-                                                                                      port.MAC, root_port[vlan])
-                    else:
-                        for vlan in port.get_vlan():
-                            if port.pvlan_status[vlan] == "Blocked":
-                                if vlan not in bridge_id_min:
-                                    bridge_id_min[vlan] = (60000, None)
-                                if vlan not in root_port:
-                                    root_port[vlan] = None
-                                if vlan in rcvd_pkt:
-                                    bridge_id_min[vlan], root_port[vlan] = self.get_min_bridge_id(rcvd_pkt[vlan],
-                                                                                                  bridge_id_min[vlan],
-                                                                                                  port.MAC,
-                                                                                                  root_port[vlan])
+                            bridge_id_min[vlan], root_port[vlan] = self.get_min_bridge_id(pkt, bridge_id_min[vlan],
+                                                                                          port.MAC, root_port[vlan])
+                        else:
+                            for vlan in port.get_vlan():
+                                if port.pvlan_status[vlan] == "Blocked":
+                                    if vlan not in bridge_id_min:
+                                        bridge_id_min[vlan] = (60000, None)
+                                    if vlan not in root_port:
+                                        root_port[vlan] = None
+                                    if vlan in rcvd_pkt:
+                                        bridge_id_min[vlan], root_port[vlan] = self.get_min_bridge_id(rcvd_pkt[vlan],
+                                                                                                      bridge_id_min[vlan],
+                                                                                                      port.MAC,
+                                                                                                      root_port[vlan])
                     port_capture.close()
                 for vlan_id in switch.get_vlans():
                     if root_port[vlan_id] is not None:
