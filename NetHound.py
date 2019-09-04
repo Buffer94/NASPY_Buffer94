@@ -13,7 +13,7 @@ full_usage = "mode options: \n" \
              "default: When no other options are chosen this script will perform all modality\n" \
              "password: is the password use for decrypting switch credentials"
 
-print("Welcome to NASPy --Buffer94_Module--")
+print("Welcome to NetHound - a NASPy tool")
 
 if os.geteuid() != 0:
     print("You need to run as root!")
