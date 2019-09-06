@@ -116,6 +116,7 @@ class LogSender:
                 server.ehlo()
                 server.login(self.user, self.password)
                 server.sendmail(self.user, addresses, msg.as_string())
+                server.close()
                 return True
             except Exception:
                 if num_attempt >= 10:
@@ -123,5 +124,3 @@ class LogSender:
                     return False
                 num_attempt += 1
                 print('Error, retrying')
-            finally:
-                server.close()

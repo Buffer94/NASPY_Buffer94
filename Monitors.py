@@ -366,6 +366,8 @@ class STPMonitor:
                         vlans.append(layer.id)
                 msg = "Alert, packet with DOUBLE 802.1Q TAGGING found! send from %s with this vlan tagged: %s" % (pkt.eth.src, vlans)
                 print(msg)
+                sender = LogSender()
+                sender.send(msg, 'Double Tagging Found!')
                 if log.closed:
                     log.open('log.naspy', 'a')
                 log.write('%s\n' % msg)
@@ -380,6 +382,8 @@ class STPMonitor:
                         switch.get_port(src).negotiation = True
                         switch.get_port(src).negotiation_rcvd = True
                         msg = "Alert, interface %s on switch %s allow trunk negotiation!" % (port_name, switch.name)
+                        sender = LogSender()
+                        sender.send(msg, 'Switch Spoofing Found!')
                         print(msg)
                         self.log.write(msg)
             else:

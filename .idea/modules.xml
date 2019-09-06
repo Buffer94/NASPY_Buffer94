@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/../NetHound - a NASPy tool/.idea/NetHound - a NASPy tool.iml" filepath="$PROJECT_DIR$/../NetHound - a NASPy tool/.idea/NetHound - a NASPy tool.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../NetHound/.idea/NetHound - a NASPy tool.iml" filepath="$PROJECT_DIR$/../NetHound/.idea/NetHound - a NASPy tool.iml" />
     </modules>
   </component>
 </project>

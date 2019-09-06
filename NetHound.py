@@ -155,7 +155,7 @@ try:
         arp_monitor.print_ip_arp_table()
 
         if mode == 'stp' or mode == 'all':
-            time.sleep(stp_monitor.waiting_timer)
+            time.sleep(stp_monitor.waiting_timer/2)
             print("Finding topology changes...")
             topology_cng_pkg = pyshark.LiveCapture(interface=interface, display_filter="stp.flags.tc == 1")
             topology_cng_pkg.sniff(packet_count=1, timeout=180)
@@ -164,8 +164,8 @@ try:
                 print("Found topology changes!")
                 log.write("%s - Found topology changes!\n" % datetime.now().strftime("%H:%M:%S"))
                 stp_monitor.discover_topology_changes(interface, password)
-                log.close()
                 stp_monitor.print_switches_status()
+                log.close()
                 time.sleep(stp_monitor.waiting_timer)
                 print("Sending log by email")
                 sender = LogSender()
@@ -174,6 +174,7 @@ try:
                 print('No changes in Topology!')
                 log.write('%s - No changes in Topology!\n' % datetime.now().strftime("%H:%M:%S"))
                 stp_monitor.print_switches_status()
+
         log.close()
         current_time = datetime.now().strftime("%H:%M")
         if current_time == "00:00":
